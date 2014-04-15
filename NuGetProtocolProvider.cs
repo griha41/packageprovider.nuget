@@ -13,6 +13,8 @@
 //  
 
 namespace OneGet.ProtocolProvider.NuGet {
-    public class Class1 {
+    public class NuGetProtocolProvider {
+        #region implement protocolprovider-interface
+        #endregion
     }
 }
