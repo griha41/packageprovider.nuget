@@ -7,8 +7,8 @@
     <ProjectGuid>{ED66CAA3-6A2C-417B-A8CD-EEB2A2658585}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Microsoft.OneGet.NuGetProtocol</RootNamespace>
-    <AssemblyName>Microsoft.OneGet.NuGetProtocol</AssemblyName>
+    <RootNamespace>OneGet.ProtocolProvider.NuGet</RootNamespace>
+    <AssemblyName>OneGet.ProtocolProvider.NuGet</AssemblyName>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <SolutionPath Condition="$(SolutionPath) == '' Or $(SolutionPath) == '*Undefined*'">$(SolutionDir)\OneGet.sln</SolutionPath>
