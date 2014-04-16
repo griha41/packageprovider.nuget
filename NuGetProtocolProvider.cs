@@ -1,4 +1,4 @@
-﻿// 
+// 
 //  Copyright (c) Microsoft Corporation. All rights reserved. 
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -15,6 +15,15 @@
 namespace OneGet.ProtocolProvider.NuGet {
     public class NuGetProtocolProvider {
         #region implement protocolprovider-interface
+        /// <summary>
+            /// Returns the name of the Provider. Doesn't need callback .
+            /// </summary>
+            /// <returns></returns>
+        public string GetProtocolProviderName(){
+            return  "NuGet";
+        }
+
         #endregion
+
     }
 }
