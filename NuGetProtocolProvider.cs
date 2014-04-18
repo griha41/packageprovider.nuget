@@ -16,11 +16,11 @@ namespace OneGet.ProtocolProvider.NuGet {
     public class NuGetProtocolProvider {
         #region implement protocolprovider-interface
         /// <summary>
-            /// Returns the name of the Provider. Doesn't need callback .
-            /// </summary>
-            /// <returns></returns>
-        public string GetProtocolProviderName(){
-            return  "NuGet";
+        ///     Returns the name of the Provider. Doesn't need callback .
+        /// </summary>
+        /// <returns></returns>
+        public string GetProtocolProviderName() {
+            return "NuGet";
         }
 
         #endregion

@@ -111,6 +111,17 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
     // 
     #region copy protocol-apis
 
+    public delegate IEnumerable<string> ProtocolGetNames();
+
+    public delegate bool ProtocolIsValidSource(IEnumerable<string> selectedProtocols, string x);
+
+    public delegate object ProtocolGetItemMetadata(string item);
+
+    public delegate bool ProtocolDownloadItem(string item);
+
+    public delegate bool ProtocolUnpackItem(string item);
+
+    public delegate bool InstallItem(string item);
     #endregion
 
     //
@@ -221,6 +232,10 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
     /// <param name="source"></param>
     /// <returns></returns>
     public delegate bool YieldPackage(string fastPath, string name, string version, string versionScheme, string summary, string source);
+
+    public delegate bool YieldPackageDetails(object serializablePackageDetailsObject);
+
+    public delegate bool YieldPackageSwidtag(string fastPath, string xmlOrJsonDoc);
 
     /// <summary>
     ///     Used by a provider to return fields for a package source (repository)
