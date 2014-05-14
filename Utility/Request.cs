@@ -12,11 +12,10 @@
 //  limitations under the License.
 //  
 
-namespace OneGet.ProtocolProvider.NuGet.Utility {
+namespace OneGet.PackageProvider.NuGet.Utility {
     using System;
     using System.Collections;
     using System.Collections.Generic;
-    using Callback = System.Func<string, System.Collections.Generic.IEnumerable<object>, object>;
 
     internal class Request : IDisposable {
         private Func<string, IEnumerable<object>, object> _callback;
@@ -416,9 +415,9 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
         private GetHostDelegate _GetHostDelegate;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "Generated Code")]
-        public Callback GetHostDelegate( ) {
+        public Func<string, IEnumerable<object>, object> GetHostDelegate( ) {
             CheckDisposed();
-            return  (_GetHostDelegate ?? (_GetHostDelegate = (_callback.Resolve<GetHostDelegate>() ?? (()=> default(Callback) ) )))();
+            return  (_GetHostDelegate ?? (_GetHostDelegate = (_callback.Resolve<GetHostDelegate>() ?? (()=> default(Func<string, IEnumerable<object>, object>) ) )))();
         }
 
         private IsCancelled _IsCancelled;
@@ -637,25 +636,6 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
 
         #endregion
 
-        #region generate-dispatcher protocol-apis
-
-        private GetProtocolNames _GetProtocolNames;
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "Generated Code")]
-        public IEnumerable<string> GetProtocolNames( ) {
-            CheckDisposed();
-            return  (_GetProtocolNames ?? (_GetProtocolNames = (_callback.Resolve<GetProtocolNames>() ?? (()=> default(IEnumerable<string>) ) )))();
-        }
-
-        private SelectProtocols _SelectProtocols;
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "Generated Code")]
-        public IEnumerable<object> SelectProtocols(IEnumerable<string> protocolNames ,Hashtable options  ) {
-            CheckDisposed();
-            return  (_SelectProtocols ?? (_SelectProtocols = (_callback.Resolve<SelectProtocols>() ?? ((pprotocolNames,poptions)=> default(IEnumerable<object>) ) )))(protocolNames,options);
-        }
-
-        #endregion
 
         public void Dispose() {
             // Clearing all of these ensures that the transient APIs 
@@ -739,11 +719,6 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
             _ShouldContinueRunningUninstallScript = null;
             _AskPermission = null;
             _WhatIf = null;
-            #endregion
-
-            #region dispose-dispatcher protocol-apis
-            _GetProtocolNames = null;
-            _SelectProtocols = null;
             #endregion
 
             _callback = null;

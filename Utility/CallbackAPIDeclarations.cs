@@ -12,11 +12,10 @@
 //  limitations under the License.
 //  
 
-namespace OneGet.ProtocolProvider.NuGet.Utility {
+namespace OneGet.PackageProvider.NuGet.Utility {
     using System;
     using System.Collections;
     using System.Collections.Generic;
-    using Callback = System.Func<string, System.Collections.Generic.IEnumerable<object>, object>;
 
     //
     // Core and Host APIs are used to interact with the installation host
@@ -43,7 +42,7 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
 
     public delegate bool CompleteProgress(int activityId, bool isSuccessful);
 
-    public delegate Callback GetHostDelegate();
+    public delegate Func<string, IEnumerable<object>, object> GetHostDelegate();
 
     /// <summary>
     ///     The provider can query to see if the operation has been cancelled.
@@ -101,18 +100,6 @@ namespace OneGet.ProtocolProvider.NuGet.Utility {
     public delegate bool AskPermission(string permission);
 
     public delegate bool WhatIf();
-    #endregion
-
-    //
-    // Protocol APIs are used to talk to protocol extensions (NuGet, etc)
-    // These are only needed if you want access to higher-level protocols
-    // like NuGet.
-    // 
-    #region copy protocol-apis
-
-    public delegate IEnumerable<string> GetProtocolNames();
-
-    public delegate IEnumerable<object> SelectProtocols(IEnumerable<string> protocolNames, Hashtable options);
     #endregion
 
     //

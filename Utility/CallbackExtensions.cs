@@ -12,7 +12,7 @@
 //  limitations under the License.
 //
 
-namespace OneGet.ProtocolProvider.NuGet.Utility {
+namespace OneGet.PackageProvider.NuGet.Utility {
     using System;
     using System.Collections.Generic;
 
