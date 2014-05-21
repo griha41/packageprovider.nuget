@@ -52,13 +52,13 @@ namespace OneGet.PackageProvider.NuGet {
             }
 
         }
-        public void GetOptionDefinitions(int category, Callback c){
+        public void GetDynamicOptions(int category, Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
             using (var request = new Request(c)) {
                 // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetOptionDefinitions'" );
+                request.Debug("Information","Calling 'GetDynamicOptions'" );
             }
 
         }
@@ -143,7 +143,7 @@ namespace OneGet.PackageProvider.NuGet {
             /// <param name="maximumVersion"></param>
             /// <param name="c"></param>
             /// <returns></returns>
-        public bool FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, Callback c){
+        public bool FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
@@ -154,7 +154,7 @@ namespace OneGet.PackageProvider.NuGet {
 
             return  default(bool);
         }
-        public bool FindPackageByFile(string file, Callback c){
+        public bool FindPackageByFile(string file, int id, Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
@@ -165,7 +165,7 @@ namespace OneGet.PackageProvider.NuGet {
 
             return  default(bool);
         }
-        public bool FindPackageByUri(Uri uri, Callback c){
+        public bool FindPackageByUri(Uri uri, int id, Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
@@ -246,6 +246,28 @@ namespace OneGet.PackageProvider.NuGet {
             using (var request = new Request(c)) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'UninstallPackage'" );
+            }
+
+            return  default(bool);
+        }
+        public int StartFind(Callback c){
+             // TODO: Fill in implementation
+             // Delete this method if you do not need to implement it
+             // Please don't throw an not implemented exception, it's not optimal.
+            using (var request = new Request(c)) {
+                // use the request object to interact with the OneGet core:
+                request.Debug("Information","Calling 'StartFind'" );
+            }
+
+            return  default(int);
+        }
+        public bool CompleteFind(int id, Callback c){
+             // TODO: Fill in implementation
+             // Delete this method if you do not need to implement it
+             // Please don't throw an not implemented exception, it's not optimal.
+            using (var request = new Request(c)) {
+                // use the request object to interact with the OneGet core:
+                request.Debug("Information","Calling 'CompleteFind'" );
             }
 
             return  default(bool);
