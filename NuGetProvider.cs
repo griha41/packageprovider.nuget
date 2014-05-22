@@ -26,12 +26,9 @@ namespace OneGet.PackageProvider.NuGet {
             /// <required/>
             /// <returns>the name of the package provider</returns>
         public string GetPackageProviderName(){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-
-            return  default(string);
+            return "NuGet";
         }
+
         public void InitializeProvider(Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
