@@ -28,21 +28,14 @@ namespace OneGet.PackageProvider.NuGet {
             return "NuGet";
         }
 
-        public void InitializeProvider(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'InitializeProvider'" );
-            }
-
+        public void InitializeProvider(object dynamicInterface, Callback c) {
+            DynamicExtensions.DynamicInterface = dynamicInterface;
         }
         public void GetFeatures(Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'GetFeatures'" );
             }
@@ -52,7 +45,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'GetDynamicOptions'" );
             }
@@ -60,21 +53,21 @@ namespace OneGet.PackageProvider.NuGet {
         }
 
         // --- Optimization features -----------------------------------------------------------------------------------------------------
-        public IEnumerable<string> GetMagicSignatures(){
+        public IEnumerable<string> GetMagicSignatures(Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
 
             return  default(IEnumerable<string>);
         }
-        public IEnumerable<string> GetSchemes(){
+        public IEnumerable<string> GetSchemes(Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
 
             return  default(IEnumerable<string>);
         }
-        public IEnumerable<string> GetFileExtensions(){
+        public IEnumerable<string> GetFileExtensions(Callback c){
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
@@ -96,7 +89,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'AddPackageSource'" );
             }
@@ -106,7 +99,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'GetPackageSources'" );
             }
@@ -117,7 +110,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'RemovePackageSource'" );
             }
@@ -143,7 +136,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'FindPackage'" );
             }
@@ -154,7 +147,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'FindPackageByFile'" );
             }
@@ -165,7 +158,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'FindPackageByUri'" );
             }
@@ -176,7 +169,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'GetInstalledPackages'" );
             }
@@ -189,7 +182,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'DownloadPackage'" );
             }
@@ -200,7 +193,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'GetPackageDependencies'" );
             }
@@ -211,7 +204,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'GetPackageDetails'" );
             }
@@ -222,7 +215,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'InstallPackage'" );
             }
@@ -239,7 +232,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'UninstallPackage'" );
             }
@@ -250,7 +243,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'StartFind'" );
             }
@@ -261,7 +254,7 @@ namespace OneGet.PackageProvider.NuGet {
              // TODO: Fill in implementation
              // Delete this method if you do not need to implement it
              // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = Request.New(c)) {
+            using (var request = c.As<Request>()) {
                 // use the request object to interact with the OneGet core:
                 request.Debug("Information","Calling 'CompleteFind'" );
             }
