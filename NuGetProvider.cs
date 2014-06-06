@@ -15,254 +15,232 @@
 namespace OneGet.PackageProvider.NuGet {
     using System;
     using System.Collections.Generic;
+    using System.IO;
+    using System.Linq;
+    using global::NuGet;
     using Callback = System.Object;
 
     public class NuGetProvider {
-        #region implement PackageProvider-interface
-/// <summary>
-            /// Returns the name of the Provider. Doesn't need a callback .
-            /// </summary>
-            /// <required/>
-            /// <returns>the name of the package provider</returns>
-        public string GetPackageProviderName(){
+        private static readonly string[] _empty = new string[0];
+
+        private static readonly Dictionary<string,string[]> _features = new Dictionary<string, string[]> {
+            { "supports-powershell-get", _empty },
+            { "schemes", new [] {"http", "https", "file"} },
+            { "extensions", new [] {"nupkg"} },
+            { "magic-signatures", _empty },
+        };
+
+        internal static IEnumerable<string> SupportedSchemes {
+            get {
+                return _features["schemes"];
+            }
+        }
+        /// <summary>
+        ///     Returns the name of the Provider. Doesn't need a callback .
+        /// </summary>
+        /// <required />
+        /// <returns>the name of the package provider</returns>
+        public string GetPackageProviderName() {
             return "NuGet";
         }
 
         public void InitializeProvider(object dynamicInterface, Callback c) {
             DynamicExtensions.DynamicInterface = dynamicInterface;
         }
-        public void GetFeatures(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
+
+        public void GetFeatures(Callback c) {
             using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetFeatures'" );
+                request.Debug("Calling 'NuGet::GetFeatures'");
+                foreach (var feature in _features) {
+                    request.Yield(feature);
+                }
             }
-
         }
-        public void GetDynamicOptions(int category, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
+
+        public void GetDynamicOptions(int category, Callback c) {
             using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetDynamicOptions'" );
+                request.Debug("Calling 'NuGet::GetDynamicOptions'");
+                try {
+                    var cat = (OptionCategory)category;
+
+                    switch (cat) {
+                        case OptionCategory.Package:
+                            request.YieldDynamicOption(cat, "Tag", OptionType.StringArray, false);
+                            request.YieldDynamicOption(cat, "Contains", OptionType.String, false);
+                            request.YieldDynamicOption(cat, "AllowPrereleaseVersions", OptionType.Switch, false);
+                            request.YieldDynamicOption(cat, "AllVersions", OptionType.Switch, false);
+                            break;
+
+                        case OptionCategory.Source:
+                            request.YieldDynamicOption(cat, "ConfigFile", OptionType.String, false);
+                            request.YieldDynamicOption(cat, "SkipValidate", OptionType.Switch, false);
+                            break;
+
+                        case OptionCategory.Install:
+                            request.YieldDynamicOption(cat, "Destination", OptionType.Path, true);
+                            request.YieldDynamicOption(cat, "SkipDependencies", OptionType.Switch, false);
+                            request.YieldDynamicOption(cat, "ContinueOnFailure", OptionType.Switch, false);
+                            break;
+                    }
+                } catch (Exception e) {
+                    // this makes it ignore new OptionCategories that it doesn't know about.
+                }
             }
-
         }
 
-        // --- Optimization features -----------------------------------------------------------------------------------------------------
-        public IEnumerable<string> GetMagicSignatures(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
 
-            return  default(IEnumerable<string>);
-        }
-        public IEnumerable<string> GetSchemes(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-
-            return  default(IEnumerable<string>);
-        }
-        public IEnumerable<string> GetFileExtensions(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-
-            return  default(IEnumerable<string>);
-        }
-        public bool GetIsSourceRequired(){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-
-            return  default(bool);
-        }
-
-        // or should we imply this from the GetPackageSources() == null/empty?
-
-            // --- Manages package sources ---------------------------------------------------------------------------------------------------
-        public void AddPackageSource(string name, string location, bool trusted, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
+        // --- Manages package sources ---------------------------------------------------------------------------------------------------
+        public void AddPackageSource(string name, string location, bool trusted, Callback c) {
             using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'AddPackageSource'" );
+                request.Debug("Calling 'NuGet::AddPackageSource'");
+                var src = request.FindRegisteredSource(name);
+                if (src != null) {
+                    request.RemovePackageSource(src.Name);
+                }
+                request.AddPackageSource(name, location, trusted);
             }
-
         }
-        public bool GetPackageSources(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetPackageSources'" );
-            }
 
-            return  default(bool);
+        public void GetPackageSources(Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::GetPackageSources'");
+
+                foreach (var source in request.SelectedSources) {
+                    request.YieldPackageSource(source.Name, source.Location, source.Trusted);
+                }
+            }
         }
-        public void RemovePackageSource(string name, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'RemovePackageSource'" );
-            }
 
+        public void RemovePackageSource(string name, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::RemovePackageSource'");
+                var src = request.FindRegisteredSource(name);
+                if (src == null) {
+                    request.Warning("UNKNOWN_SOURCE", name);
+                    return;
+                }
+
+                request.RemovePackageSource(src.Name);
+                request.YieldPackageSource(src.Name, src.Location, src.Trusted);
+            }
         }
 
         // --- Finds packages ---------------------------------------------------------------------------------------------------
-            /// <summary>
-            /// 
-            /// 
-            /// Notes:
-            /// 
-            ///  - If a call to GetPackageSources() on this object returns no sources, the cmdlet won't call FindPackage on this source
-            ///  - (ie, the expectation is that you have to provide a source in order to use find package)
-            /// </summary>
-            /// <param name="name"></param>
-            /// <param name="requiredVersion"></param>
-            /// <param name="minimumVersion"></param>
-            /// <param name="maximumVersion"></param>
-            /// <param name="c"></param>
-            /// <returns></returns>
-        public bool FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
+        /// <summary>
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="requiredVersion"></param>
+        /// <param name="minimumVersion"></param>
+        /// <param name="maximumVersion"></param>
+        /// <param name="c"></param>
+        /// <returns></returns>
+        public void FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, Callback c) {
             using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'FindPackage'" );
-            }
+                request.Debug("Calling 'NuGet::FindPackage'");
 
-            return  default(bool);
+                // get the package by ID first.
+                // if there are any packages, yield and return
+                if (request.YieldPackages(request.GetPackageById(name, requiredVersion, minimumVersion, maximumVersion), name)) {
+                    return;
+                }
+
+                // have we been cancelled?
+                if (request.IsCancelled()) {
+                    return;
+                }
+
+                // Try searching for matches and returning those.
+                request.YieldPackages(request.SearchForPackages(name, requiredVersion, minimumVersion, maximumVersion), name);
+            }
         }
-        public bool FindPackageByFile(string file, int id, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'FindPackageByFile'" );
-            }
 
-            return  default(bool);
+        public void FindPackageByFile(string filePath, int id, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::FindPackageByFile'");
+                filePath = Path.GetFullPath(filePath);
+                if (File.Exists(filePath)) {
+                    if (PackageHelper.IsPackageFile(filePath)) {
+                        var pkg = new ZipPackage(filePath);
+                        var fastPath = request.MakeFastPath(filePath, pkg.Id, pkg.Version.ToString());
+                        request.YieldPackage(fastPath, pkg.Id, pkg.Version.ToString(), "semver", "", filePath, filePath);
+                    }
+                }
+            }
         }
-        public bool FindPackageByUri(Uri uri, int id, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'FindPackageByUri'" );
-            }
 
-            return  default(bool);
+        public void FindPackageByUri(Uri uri, int id, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::FindPackageByUri'");
+
+                // check if this URI is a valid source
+                // if it is, get the list of packages from this source
+
+                // otherwise, download the Uri and see if it's a package 
+                // that we support.
+            }
         }
-        public bool GetInstalledPackages(string name, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetInstalledPackages'" );
-            }
 
-            return  default(bool);
+        public void GetInstalledPackages(string name, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::GetInstalledPackages'");
+            }
         }
 
         // --- operations on a package ---------------------------------------------------------------------------------------------------
-        public bool DownloadPackage(string fastPath, string location, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
+        public void DownloadPackage(string fastPath, string location, Callback c) {
             using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'DownloadPackage'" );
+                request.Debug("Calling 'NuGet::DownloadPackage'");
             }
-
-            return  default(bool);
-        }
-        public bool GetPackageDependencies(string fastPath, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetPackageDependencies'" );
-            }
-
-            return  default(bool);
-        }
-        public bool GetPackageDetails(string fastPath, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'GetPackageDetails'" );
-            }
-
-            return  default(bool);
-        }
-        public bool InstallPackage(string fastPath, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'InstallPackage'" );
-            }
-
-            return  default(bool);
         }
 
-        // auto-install-dependencies
-                // skip-dependency-check
-                // continue-on-failure
-                // location system/user/folder
-                // callback for each package installed when installing dependencies?
-        public bool UninstallPackage(string fastPath, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
+        public void GetPackageDependencies(string fastPath, Callback c) {
             using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'UninstallPackage'" );
+                request.Debug("Calling 'NuGet::GetPackageDependencies'");
             }
-
-            return  default(bool);
-        }
-        public int StartFind(Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'StartFind'" );
-            }
-
-            return  default(int);
-        }
-        public bool CompleteFind(int id, Callback c){
-             // TODO: Fill in implementation
-             // Delete this method if you do not need to implement it
-             // Please don't throw an not implemented exception, it's not optimal.
-            using (var request = c.As<Request>()) {
-                // use the request object to interact with the OneGet core:
-                request.Debug("Information","Calling 'CompleteFind'" );
-            }
-
-            return  default(bool);
         }
 
-        #endregion
+        public void GetPackageDetails(string fastPath, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::GetPackageDetails'");
+            }
+        }
 
+        public void InstallPackage(string fastPath, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::InstallPackage'");
+
+                var pkgRef = request.GetPackageByFastpath(fastPath);
+                if (pkgRef == null) {
+                    request.Error("Unable to resolve package reference");
+                }
+
+                var dependencies = request.GetUninstalledPackageDependencies(pkgRef).Reverse().ToArray();
+
+                var n = 0;
+                foreach (var d in dependencies) {
+                    if (!request.InstallSinglePackage(d)) {
+                        request.Error("InstallFailure", "Dependent Package '{0} {1}' not installed", d.Id, d.Version);
+                        return;
+                    }
+                }
+
+                // got this far, let's install the package we came here for.
+                if (!request.InstallSinglePackage(pkgRef)) {
+                    // package itself didn't install.
+                    // roll that back out everything we did install.
+                    // and get out of here.
+                    request.Error("InstallFailure", "Package '{0}' not installed", pkgRef.Id);
+                    
+                }
+            }
+        }
+
+        // callback for each package installed when installing dependencies?
+
+        public void UninstallPackage(string fastPath, Callback c) {
+            using (var request = c.As<Request>()) {
+                request.Debug("Calling 'NuGet::UninstallPackage'");
+            }
+        }
     }
 }
