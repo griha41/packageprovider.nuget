@@ -45,7 +45,7 @@ namespace OneGet.PackageProvider.NuGet {
         }
 
         public void InitializeProvider(object dynamicInterface, Callback c) {
-            DynamicExtensions.DynamicInterface = dynamicInterface;
+            DynamicExtensions.RemoteDynamicInterface = dynamicInterface;
         }
 
         public void GetFeatures(Callback c) {
@@ -80,6 +80,8 @@ namespace OneGet.PackageProvider.NuGet {
                             request.YieldDynamicOption(cat, "Destination", OptionType.Path, true);
                             request.YieldDynamicOption(cat, "SkipDependencies", OptionType.Switch, false);
                             request.YieldDynamicOption(cat, "ContinueOnFailure", OptionType.Switch, false);
+                            request.YieldDynamicOption(cat, "ExcludeVersion", OptionType.Switch, false);
+                            request.YieldDynamicOption(cat, "PackageSaveMode", OptionType.String, false,new [] {"nuspec", "nupkg", "nuspec;nupkg"} );
                             break;
                     }
                 } catch (Exception e) {

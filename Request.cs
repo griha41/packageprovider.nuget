@@ -59,6 +59,8 @@ namespace OneGet.PackageProvider.NuGet {
         public abstract bool IsCancelled();
 
         public abstract object GetPackageManagementService(Callback c);
+
+        public abstract Type GetIRequestInterface();
         #endregion
 
         #region copy host-apis
@@ -216,21 +218,21 @@ public bool Warning(string message, params object[] args) {
         public void Dispose() {
         }
 
-        #endregion
-
-
-        private static dynamic _dynamicInterface;
-
         public static implicit operator MarshalByRefObject(Request req) {
-            if (_dynamicInterface == null) {
-                // Manually load the assembly 
-                var asm = Assembly.Load("Microsoft.OneGet.Utility");
-                // instantiate the dynamic interface object
-                _dynamicInterface = asm.CreateInstance("Microsoft.OneGet.Core.Dynamic.DynamicInterface");
-            }
-            return _dynamicInterface.Create((Type)AppDomain.CurrentDomain.GetData("IRequest"), req);
+            return req.RemoteThis;
         }
-       
+
+        internal MarshalByRefObject RemoteThis {
+            get {
+                return Extend();
+            }
+        }
+
+        internal MarshalByRefObject Extend(params object[] objects) {
+            return DynamicExtensions.Extend(this, GetIRequestInterface(), objects);
+        }
+
+        #endregion
 
         private const string DefaultConfig = @"<?xml version=""1.0""?>
 <configuration>
@@ -239,10 +241,8 @@ public bool Warning(string message, params object[] args) {
   </packageSources>
 </configuration>";
 
-        
         private static readonly Regex _rxFastPath = new Regex(@"\$(?<source>[\w,\+,\/,=]*)\\(?<id>[\w,\+,\/,=]*)\\(?<version>[\w,\+,\/,=]*)");
         private static readonly Regex _rxPkgParse = new Regex(@"'(?<pkgId>\S*)\s(?<ver>.*?)'");
-
 
         private string _configurationFileLocation;
         internal string ConfigurationFileLocation {
@@ -330,7 +330,7 @@ public bool Warning(string message, params object[] args) {
 
                 Verbose("Saving NuGet Config {0}", ConfigurationFileLocation);
 
-                CreateFolder(Path.GetDirectoryName(ConfigurationFileLocation), this);
+                CreateFolder(Path.GetDirectoryName(ConfigurationFileLocation), RemoteThis);
                 value.Save(ConfigurationFileLocation);
             }
         }

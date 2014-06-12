@@ -32,8 +32,9 @@ public enum OptionCategory {
     }
 
     public enum EnvironmentContext {
-        User = 0,
-        System = 1
+        All = 0,
+        User = 1,
+        System = 2
     }
 
     #endregion
