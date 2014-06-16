@@ -17,6 +17,7 @@ namespace OneGet.PackageProvider.NuGet {
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Reflection;
     using global::NuGet;
     using Callback = System.Object;
 
@@ -46,6 +47,9 @@ namespace OneGet.PackageProvider.NuGet {
 
         public void InitializeProvider(object dynamicInterface, Callback c) {
             DynamicExtensions.RemoteDynamicInterface = dynamicInterface;
+            _features.AddOrSet("exe", new[] {
+                Assembly.GetAssembly(typeof(global::NuGet.PackageSource)).Location
+            });
         }
 
         public void GetFeatures(Callback c) {
@@ -59,9 +63,9 @@ namespace OneGet.PackageProvider.NuGet {
 
         public void GetDynamicOptions(int category, Callback c) {
             using (var request = c.As<Request>()) {
-                request.Debug("Calling 'NuGet::GetDynamicOptions'");
                 try {
                     var cat = (OptionCategory)category;
+                    request.Debug("Calling 'NuGet::GetDynamicOptions ({0})'", cat);
 
                     switch (cat) {
                         case OptionCategory.Package:
@@ -108,7 +112,7 @@ namespace OneGet.PackageProvider.NuGet {
                 request.Debug("Calling 'NuGet::GetPackageSources'");
 
                 foreach (var source in request.SelectedSources) {
-                    request.YieldPackageSource(source.Name, source.Location, source.Trusted);
+                    request.YieldPackageSource(source.Name, source.Location, source.Trusted, source.IsRegistered);
                 }
             }
         }
@@ -123,7 +127,7 @@ namespace OneGet.PackageProvider.NuGet {
                 }
 
                 request.RemovePackageSource(src.Name);
-                request.YieldPackageSource(src.Name, src.Location, src.Trusted);
+                request.YieldPackageSource(src.Name, src.Location, src.Trusted, src.IsRegistered);
             }
         }
 
@@ -134,6 +138,7 @@ namespace OneGet.PackageProvider.NuGet {
         /// <param name="requiredVersion"></param>
         /// <param name="minimumVersion"></param>
         /// <param name="maximumVersion"></param>
+        /// <param name="id"></param>
         /// <param name="c"></param>
         /// <returns></returns>
         public void FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, Callback c) {
@@ -164,7 +169,7 @@ namespace OneGet.PackageProvider.NuGet {
                     if (PackageHelper.IsPackageFile(filePath)) {
                         var pkg = new ZipPackage(filePath);
                         var fastPath = request.MakeFastPath(filePath, pkg.Id, pkg.Version.ToString());
-                        request.YieldPackage(fastPath, pkg.Id, pkg.Version.ToString(), "semver", "", filePath, filePath);
+                        request.YieldPackage(fastPath, pkg.Id, pkg.Version.ToString(), "semver", "", filePath, filePath, filePath, Path.GetFileName(filePath));
                     }
                 }
             }
@@ -185,6 +190,34 @@ namespace OneGet.PackageProvider.NuGet {
         public void GetInstalledPackages(string name, Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::GetInstalledPackages'");
+                var nupkgs = Directory.EnumerateFileSystemEntries(request.Destination, "*.nupkg", SearchOption.AllDirectories);
+
+                foreach (var pkgFile in nupkgs) {
+                    if (PackageHelper.IsPackageFile(pkgFile)) {
+                        // todo: currently requires nupkg file in place.
+                        // need to fix this and the other one.
+                        var pkg = new ZipPackage(pkgFile);
+                        // todo: wildcard matching?
+
+                        // if this is an exact match, just return that.
+                        if (pkg.Id.Equals(name, StringComparison.CurrentCultureIgnoreCase)) {
+                            var fastpath = request.MakeFastPath(pkgFile, pkg.Id, pkg.Version.ToString());
+                            if (!request.YieldPackage(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name,Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
+                                return;
+                            }
+                            break;
+                        }
+
+                        //otherwise return partial matches.
+                        if (string.IsNullOrEmpty(name) || pkg.Id.IndexOf(name, StringComparison.CurrentCultureIgnoreCase) > -1) {
+                            var fastpath = request.MakeFastPath(pkgFile, pkg.Id, pkg.Version.ToString());
+                            if (!request.YieldPackage(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name, Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
+                                return;
+                            }
+                        }
+                    }
+                }
+
             }
         }
 
@@ -192,12 +225,44 @@ namespace OneGet.PackageProvider.NuGet {
         public void DownloadPackage(string fastPath, string location, Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::DownloadPackage'");
+
+                var pkgRef = request.GetPackageByFastpath(fastPath);
+                if (pkgRef == null) {
+                    request.Error("Unable to resolve package reference");
+                    return;
+                }
+
+                // cheap and easy copy to location.
+                using (var input = pkgRef.Package.GetStream()) {
+                    using (var output = new FileStream(location, FileMode.Create, FileAccess.Write, FileShare.Read)) {
+                        input.CopyTo(output);
+                    }
+                }
             }
         }
 
         public void GetPackageDependencies(string fastPath, Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::GetPackageDependencies'");
+
+                var pkgRef = request.GetPackageByFastpath(fastPath);
+                if (pkgRef == null) {
+                    request.Error("Unable to resolve package reference");
+                    return;
+                }
+
+                foreach (var depSet in pkgRef.Package.DependencySets) {
+                    foreach (var dep in depSet.Dependencies) {
+                        var depRefs = dep.VersionSpec == null ? request.GetPackageById(dep.Id).ToArray() : request.GetPackageByIdAndVersionSpec(dep.Id, dep.VersionSpec, true).ToArray();
+                        if (depRefs.Length == 0) {
+                            request.Error("DependencyResolutionFailure", "Unable to resolve dependent package '{0} v{1}'", dep.Id, ((object)dep.VersionSpec ?? "").ToString());
+                            throw new Exception("DependencyResolutionFailure");
+                        }
+                        var dr = depRefs[0];
+
+                        request.YieldPackage(request.MakeFastPath(dr.Source, dr.Id, dr.Version), dr.Id, dr.Version, "semver", dr.Package.Summary,request.GetNameForSource( dr.Source) , pkgRef.Id, pkgRef.FullPath, pkgRef.FullName );
+                    }
+                }
             }
         }
 
@@ -208,20 +273,21 @@ namespace OneGet.PackageProvider.NuGet {
         }
 
         public void InstallPackage(string fastPath, Callback c) {
+            // ensure that mandatory parameters are present.
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::InstallPackage'");
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
                 if (pkgRef == null) {
                     request.Error("Unable to resolve package reference");
+                    return;
                 }
 
                 var dependencies = request.GetUninstalledPackageDependencies(pkgRef).Reverse().ToArray();
 
-                var n = 0;
                 foreach (var d in dependencies) {
                     if (!request.InstallSinglePackage(d)) {
-                        request.Error("InstallFailure", "Dependent Package '{0} {1}' not installed", d.Id, d.Version);
+                        request.Error("InstallFailure:Dependent Package '{0} {1}' not installed", d.Id, d.Version);
                         return;
                     }
                 }
@@ -231,7 +297,7 @@ namespace OneGet.PackageProvider.NuGet {
                     // package itself didn't install.
                     // roll that back out everything we did install.
                     // and get out of here.
-                    request.Error("InstallFailure", "Package '{0}' not installed", pkgRef.Id);
+                    request.Error("InstallFailure: Package '{0}' not installed", pkgRef.Id);
                     
                 }
             }

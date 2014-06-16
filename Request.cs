@@ -15,20 +15,57 @@
 namespace OneGet.PackageProvider.NuGet {
     using System;
     using System.Collections.Generic;
+    using System.ComponentModel.Design;
     using System.IO;
     using System.Linq;
-    using System.Reflection;
     using System.Security;
+    using System.Security.Cryptography.X509Certificates;
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Xml.Linq;
     using System.Xml.XPath;
     using global::NuGet;
-    using Microsoft.OneGet.Core.Platform;
     using Callback = System.MarshalByRefObject;
 
     public abstract class Request : IDisposable {
         #region copy core-apis
+
+        /// <summary>
+        ///     The provider can query to see if the operation has been cancelled.
+        ///     This provides for a gentle way for the caller to notify the callee that
+        ///     they don't want any more results.
+        /// </summary>
+        /// <returns>returns TRUE if the operation has been cancelled.</returns>
+        public abstract bool IsCancelled();
+
+        /// <summary>
+        ///     Returns a reference to the PackageManagementService API
+        ///     The consumer of this function should either use this as a dynamic object
+        ///     Or DuckType it to an interface that resembles IPacakgeManagementService
+        /// </summary>
+        /// <param name="c"></param>
+        /// <returns></returns>
+        public abstract object GetPackageManagementService(Object c);
+
+        /// <summary>
+        ///     Returns the type for a Request/Callback that the OneGet Core is expecting
+        ///     This is (currently) neccessary to provide an appropriately-typed version
+        ///     of the Request to the core when a Plugin is calling back into the core
+        ///     and has to pass a Callback.
+        /// </summary>
+        /// <returns></returns>
+        public abstract Type GetIRequestInterface();
+
+        public abstract bool NotifyBeforePackageInstall(string packageName, string version, string source, string destination);
+
+        public abstract bool NotifyPackageInstalled(string packageName, string version, string source, string destination);
+
+        public abstract bool NotifyBeforePackageUninstall(string packageName, string version, string source, string destination);
+
+        public abstract bool NotifyPackageUninstalled(string packageName, string version, string source, string destination);
+        #endregion
+
+        #region copy host-apis
 
         public abstract string GetMessageString(string message);
 
@@ -49,21 +86,6 @@ namespace OneGet.PackageProvider.NuGet {
         public abstract bool Progress(int activityId, int progress, string message);
 
         public abstract bool CompleteProgress(int activityId, bool isSuccessful);
-
-        /// <summary>
-        ///     The provider can query to see if the operation has been cancelled.
-        ///     This provides for a gentle way for the caller to notify the callee that
-        ///     they don't want any more results.
-        /// </summary>
-        /// <returns>returns TRUE if the operation has been cancelled.</returns>
-        public abstract bool IsCancelled();
-
-        public abstract object GetPackageManagementService(Callback c);
-
-        public abstract Type GetIRequestInterface();
-        #endregion
-
-        #region copy host-apis
 
         /// <summary>
         ///     Used by a provider to request what metadata keys were passed from the user
@@ -94,48 +116,42 @@ namespace OneGet.PackageProvider.NuGet {
         public abstract bool ShouldContinueRunningUninstallScript(string packageName, string version, string source, string scriptLocation);
 
         public abstract bool AskPermission(string permission);
-
-        public abstract bool WhatIf();
-
-        public abstract bool PackageInstalled(string packageName, string version, string source, string destination);
-
-        public abstract bool BeforePackageUninstall(string packageName, string version, string source, string destination);
         #endregion
 
         #region copy service-apis
 
-        public abstract void DownloadFile(Uri remoteLocation, string localFilename, Callback c);
+        public abstract void DownloadFile(Uri remoteLocation, string localFilename, Object c);
 
-        public abstract bool IsSupportedArchive(string localFilename, Callback c);
+        public abstract bool IsSupportedArchive(string localFilename, Object c);
 
-        public abstract IEnumerable<string> UnpackArchive(string localFilename, string destinationFolder, Callback c);
+        public abstract IEnumerable<string> UnpackArchive(string localFilename, string destinationFolder, Object c);
 
-        public abstract void AddPinnedItemToTaskbar(string item, Callback c);
+        public abstract void AddPinnedItemToTaskbar(string item, Object c);
 
-        public abstract void RemovePinnedItemFromTaskbar(string item, Callback c);
+        public abstract void RemovePinnedItemFromTaskbar(string item, Object c);
 
-        public abstract void CreateShortcutLink(string linkPath, string targetPath, string description, string workingDirectory, string arguments, Callback c);
+        public abstract void CreateShortcutLink(string linkPath, string targetPath, string description, string workingDirectory, string arguments, Object c);
 
-        public abstract void SetEnvironmentVariable(string variable, string value, int context, Callback c);
+        public abstract void SetEnvironmentVariable(string variable, string value, int context, Object c);
 
-        public abstract void RemoveEnvironmentVariable(string variable, int context, Callback c);
+        public abstract void RemoveEnvironmentVariable(string variable, int context, Object c);
 
-        public abstract void CopyFile(string sourcePath, string destinationPath, Callback c);
+        public abstract void CopyFile(string sourcePath, string destinationPath, Object c);
 
-        public abstract void Delete(string path, Callback c);
+        public abstract void Delete(string path, Object c);
 
-        public abstract void DeleteFolder(string folder, Callback c);
+        public abstract void DeleteFolder(string folder, Object c);
 
-        public abstract void CreateFolder(string folder, Callback c);
+        public abstract void CreateFolder(string folder, Object c);
 
-        public abstract void DeleteFile(string filename, Callback c);
+        public abstract void DeleteFile(string filename, Object c);
 
-        public abstract string GetKnownFolder(string knownFolder, Callback c);
+        public abstract string GetKnownFolder(string knownFolder, Object c);
 
-        public abstract bool IsElevated(Callback c);
+        public abstract bool IsElevated(Object c);
         #endregion
 
-        #region copy request-apis
+        #region copy response-apis
 
         /// <summary>
         ///     The provider can query to see if the operation has been cancelled.
@@ -155,8 +171,10 @@ namespace OneGet.PackageProvider.NuGet {
         /// <param name="summary"></param>
         /// <param name="source"></param>
         /// <param name="searchKey"></param>
+        /// <param name="fullPath"></param>
+        /// <param name="packageFileName"></param>
         /// <returns></returns>
-        public abstract bool YieldPackage(string fastPath, string name, string version, string versionScheme, string summary, string source, string searchKey);
+        public abstract bool YieldPackage(string fastPath, string name, string version, string versionScheme, string summary, string source, string searchKey, string fullPath, string packageFileName);
 
         public abstract bool YieldPackageDetails(object serializablePackageDetailsObject);
 
@@ -167,8 +185,10 @@ namespace OneGet.PackageProvider.NuGet {
         /// </summary>
         /// <param name="name"></param>
         /// <param name="location"></param>
+        /// <param name="isTrusted"></param>
+        /// <param name="isRegistered"></param>
         /// <returns></returns>
-        public abstract bool YieldPackageSource(string name, string location, bool isTrusted);
+        public abstract bool YieldPackageSource(string name, string location, bool isTrusted,bool isRegistered);
 
         /// <summary>
         ///     Used by a provider to return the fields for a Metadata Definition
@@ -188,31 +208,51 @@ namespace OneGet.PackageProvider.NuGet {
 
         #region copy Request-implementation
 public bool Warning(string message, params object[] args) {
-            return Warning(string.Format(GetMessageString(message) ?? message, args));
+            return Warning(FormatMessageString(message,args));
         }
 
         public bool Error(string message, params object[] args) {
-            return Error(string.Format(GetMessageString(message) ?? message, args));
+            return Error(FormatMessageString(message,args));
         }
 
         public bool Message(string message, params object[] args) {
-            return Message(string.Format(GetMessageString(message) ?? message, args));
+            return Message(FormatMessageString(message,args));
         }
 
         public bool Verbose(string message, params object[] args) {
-            return Verbose(string.Format(GetMessageString(message) ?? message, args));
-        }
+            return Verbose(FormatMessageString(message,args));
+        } 
 
         public bool Debug(string message, params object[] args) {
-            return Debug(string.Format(GetMessageString(message) ?? message, args));
+            return Debug(FormatMessageString(message,args));
         }
 
         public int StartProgress(int parentActivityId, string message, params object[] args) {
-            return StartProgress(parentActivityId, string.Format(GetMessageString(message) ?? message, args));
+            return StartProgress(parentActivityId, FormatMessageString(message,args));
         }
 
         public bool Progress(int activityId, int progress, string message, params object[] args) {
-            return Progress(activityId, progress, string.Format(GetMessageString(message) ?? message, args));
+            return Progress(activityId, progress, FormatMessageString(message,args));
+        }
+
+        private static string FixMeFormat(string formatString, object[] args) {
+            if (args == null || args.Length == 0 ) {
+                // not really any args, and not really expectng any
+                return formatString.Replace('{', '\u00ab').Replace('}', '\u00bb');
+            }
+            return System.Linq.Enumerable.Aggregate(args, "FIXME/Format:" + formatString.Replace('{', '\u00ab').Replace('}', '\u00bb'), (current, arg) => current + string.Format(" \u00ab{0}\u00bb", arg));
+        }
+
+        internal string FormatMessageString(string message, object[] args) {
+            message = GetMessageString(message) ?? message;
+
+            // if it doesn't look like we have the correct number of parameters
+            // let's return a fixmeformat string.
+            var c = System.Linq.Enumerable.Count( System.Linq.Enumerable.Where(message.ToCharArray(), each => each == '{'));
+            if (c < args.Length) {
+                return FixMeFormat(message, args);
+            }
+            return string.Format(message, args);
         }
 
         public void Dispose() {
@@ -245,6 +285,7 @@ public bool Warning(string message, params object[] args) {
         private static readonly Regex _rxPkgParse = new Regex(@"'(?<pkgId>\S*)\s(?<ver>.*?)'");
 
         private string _configurationFileLocation;
+
         internal string ConfigurationFileLocation {
             get {
                 if (string.IsNullOrEmpty(_configurationFileLocation)) {
@@ -255,7 +296,7 @@ public bool Warning(string message, params object[] args) {
                     }
 
                     //otherwise, use %APPDATA%/NuGet/NuGet.Config
-                    _configurationFileLocation = Path.Combine(GetKnownFolder("ApplicationData", this), "NuGet", "NuGet.config");
+                    _configurationFileLocation = Path.Combine(GetKnownFolder("ApplicationData", RemoteThis), "NuGet", "NuGet.config");
                 }
                 return _configurationFileLocation;
             }
@@ -309,6 +350,18 @@ public bool Warning(string message, params object[] args) {
             }
         }
 
+        internal bool ExcludeVersion {
+            get {
+                return GetValue(OptionCategory.Install, "ExcludeVersion").IsTrue();
+            }
+        }
+
+        internal string PackageSaveMode {
+            get {
+                return GetValue(OptionCategory.Install, "PackageSaveMode");
+            }
+        }
+
         internal XDocument Config {
             get {
                 try {
@@ -317,8 +370,7 @@ public bool Warning(string message, params object[] args) {
                         return doc;
                     }
                     // doc root isn't right. make a new one!
-                }
-                catch {
+                } catch {
                     // a bad xml doc.
                 }
                 return XDocument.Load(new MemoryStream(Encoding.UTF8.GetBytes(DefaultConfig)));
@@ -343,10 +395,10 @@ public bool Warning(string message, params object[] args) {
                         .ToDictionaryNicely(each => each.Attribute("key").Value, each => new PackageSource {
                             Name = each.Attribute("key").Value,
                             Location = each.Attribute("value").Value,
-                            Trusted = each.Attributes("trusted").Any() && each.Attribute("trusted").Value.IsTrue()
+                            Trusted = each.Attributes("trusted").Any() && each.Attribute("trusted").Value.IsTrue(),
+                            IsRegistered = true,
                         }, StringComparer.OrdinalIgnoreCase);
-                }
-                catch {
+                } catch {
                 }
                 return new Dictionary<string, PackageSource> {
                     {
@@ -354,6 +406,7 @@ public bool Warning(string message, params object[] args) {
                             Name = "nuget.org",
                             Location = "https://www.nuget.org/api/v2/",
                             Trusted = false,
+                            IsRegistered = false,
                         }
                     }
                 };
@@ -398,7 +451,8 @@ public bool Warning(string message, params object[] args) {
                                 yield return new PackageSource {
                                     Location = srcUri.ToString(),
                                     Name = srcUri.ToString(),
-                                    Trusted = false
+                                    Trusted = false,
+                                    IsRegistered = false,
                                 };
                                 continue;
                             }
@@ -415,9 +469,9 @@ public bool Warning(string message, params object[] args) {
                             Location = src,
                             Name = src,
                             Trusted = true,
+                            IsRegistered = false,
                         };
-                    }
-                    else {
+                    } else {
                         // hmm. not a valid location?
                         Warning("UNKNOWN_SOURCE", src);
                     }
@@ -428,6 +482,12 @@ public bool Warning(string message, params object[] args) {
         internal IEnumerable<IPackageRepository> Repositories {
             get {
                 return SelectedSources.Select(each => PackageRepositoryFactory.Default.CreateRepository(each.Location)).ToArray();
+            }
+        }
+
+        private static string NuGetExePath {
+            get {
+                return typeof (AggregateRepository).Assembly.Location;
             }
         }
 
@@ -524,7 +584,6 @@ public bool Warning(string message, params object[] args) {
 
             // todo: do a get on the uri and see if it responds.
             return true;
-            return false;
         }
 
         internal IEnumerable<IPackage> FilterOnVersion(IEnumerable<IPackage> pkgs, string requiredVersion, string minimumVersion, string maximumVersion) {
@@ -555,12 +614,12 @@ public bool Warning(string message, params object[] args) {
             return match.Success;
         }
 
-        internal bool YieldPackages(IEnumerable<PackageReference> packageReferences, string searchKey) {
+        internal bool YieldPackages(IEnumerable<PackageItem> packageReferences, string searchKey) {
             var foundPackage = false;
 
             foreach (var pkg in packageReferences) {
                 foundPackage = true;
-                if (!YieldPackage(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, GetNameForSource(pkg.Source), searchKey)) {
+                if (!YieldPackage(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, GetNameForSource(pkg.Source), searchKey, pkg.FullPath, pkg.PackageFilename)) {
                     break;
                 }
             }
@@ -574,8 +633,7 @@ public bool Warning(string message, params object[] args) {
                 if (File.Exists(source)) {
                     return "Local File";
                 }
-            }
-            catch {
+            } catch {
             }
 
             return apr.Keys.FirstOrDefault(key => {
@@ -598,9 +656,9 @@ public bool Warning(string message, params object[] args) {
             }) ?? source;
         }
 
-        internal IEnumerable<PackageReference> GetPackageById(string name, string requiredVersion = null, string minimumVersion = null, string maximumVersion = null) {
+        internal IEnumerable<PackageItem> GetPackageById(string name, string requiredVersion = null, string minimumVersion = null, string maximumVersion = null, bool allowUnlisted = false) {
             if (string.IsNullOrEmpty(name)) {
-                return Enumerable.Empty<PackageReference>();
+                return Enumerable.Empty<PackageItem>();
             }
             return Repositories.AsParallel().SelectMany(repository => {
                 try {
@@ -611,15 +669,14 @@ public bool Warning(string message, params object[] args) {
                     }
 
                     return FilterOnVersion(pkgs, requiredVersion, minimumVersion, maximumVersion)
-                        .Select(pkg => new PackageReference {
+                        .Select(pkg => new PackageItem {
                             Package = pkg,
                             Source = repository.Source,
                             FastPath = MakeFastPath(repository.Source, pkg.Id, pkg.Version.ToString())
                         });
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     e.Dump(this);
-                    return Enumerable.Empty<PackageReference>();
+                    return Enumerable.Empty<PackageItem>();
                 }
             });
         }
@@ -628,11 +685,11 @@ public bool Warning(string message, params object[] args) {
             return pkgs.Where(each => each.Id.IndexOf(name, StringComparison.OrdinalIgnoreCase) > -1);
         }
 
-        internal PackageReference GetPackageByPath(string filePath) {
+        internal PackageItem GetPackageByPath(string filePath) {
             if (PackageHelper.IsPackageFile(filePath)) {
                 var package = new ZipPackage(filePath);
 
-                return new PackageReference {
+                return new PackageItem {
                     FastPath = MakeFastPath(filePath, package.Id, package.Version.ToString()),
                     Source = Path.GetDirectoryName(filePath),
                     Package = package,
@@ -653,7 +710,7 @@ public bool Warning(string message, params object[] args) {
             return null;
         }
 
-        internal PackageReference GetPackageByFastpath(string fastPath) {
+        internal PackageItem GetPackageByFastpath(string fastPath) {
             string source;
             string id;
             string version;
@@ -665,7 +722,7 @@ public bool Warning(string message, params object[] args) {
                 var repo = PackageRepositoryFactory.Default.CreateRepository(ResolveRepositoryLocation(source));
                 var pkg = repo.FindPackage(id, new SemanticVersion(version));
                 if (pkg != null) {
-                    return new PackageReference {
+                    return new PackageItem {
                         FastPath = fastPath,
                         Source = source,
                         Package = pkg,
@@ -675,7 +732,7 @@ public bool Warning(string message, params object[] args) {
             return null;
         }
 
-        internal IEnumerable<PackageReference> SearchForPackages(string name, string requiredVersion, string minimumVersion, string maximumVersion) {
+        internal IEnumerable<PackageItem> SearchForPackages(string name, string requiredVersion, string minimumVersion, string maximumVersion) {
             return Repositories.AsParallel().SelectMany(repository => {
                 var criteria = Contains;
                 if (string.IsNullOrEmpty(criteria)) {
@@ -693,8 +750,7 @@ public bool Warning(string message, params object[] args) {
                     //slow, client side way: pkgs = packages.ToEnumerable.GroupBy(p => p.Id).Select(set => set.MyMax(p => p.Version));
                     // new way: uses method in NuGet.exe in 2.8.1.1+
                     pkgs = packages.FindLatestVersion();
-                }
-                else {
+                } else {
                     // post-query filtering:
                     pkgs = packages;
                 }
@@ -705,7 +761,7 @@ public bool Warning(string message, params object[] args) {
                 }
 
                 return FilterOnVersion(pkgs, requiredVersion, minimumVersion, maximumVersion)
-                    .Select(pkg => new PackageReference {
+                    .Select(pkg => new PackageItem {
                         Package = pkg,
                         Source = repository.Source,
                         FastPath = MakeFastPath(repository.Source, pkg.Id, pkg.Version.ToString())
@@ -714,17 +770,31 @@ public bool Warning(string message, params object[] args) {
         }
 
         public bool IsPackageInstalled(string name, string version) {
+#if find_installed_packages_with_nuspec 
+
+            var nuspecs = from pkgFile in Directory.EnumerateFileSystemEntries(Destination, "*.nuspec", SearchOption.AllDirectories) select pkgFile ;
+
+            foreach (var n in nuspecs) {
+                // uh, do we have to parse these?
+                // hmmm.
+            }
+
+            // or we could search in this folder for a directory with or without the version
+            // then examine the contents.
+            // hmmm. I'd rather let nuget do that if I can, it's better at it.
+
+#endif
             return (from pkgFile in Directory.EnumerateFileSystemEntries(Destination, "*.nupkg", SearchOption.AllDirectories)
-                    where PackageHelper.IsPackageFile(pkgFile)
-                    select new ZipPackage(pkgFile))
+                where PackageHelper.IsPackageFile(pkgFile)
+                select new ZipPackage(pkgFile))
                 .Any(pkg => pkg.Id.Equals(name, StringComparison.OrdinalIgnoreCase) && pkg.Version.ToString().Equals(version, StringComparison.OrdinalIgnoreCase));
         }
 
-        internal IEnumerable<PackageReference> GetUninstalledPackageDependencies(PackageReference packageReference) {
-            foreach (var depSet in packageReference.Package.DependencySets) {
+        internal IEnumerable<PackageItem> GetUninstalledPackageDependencies(PackageItem packageItem) {
+            foreach (var depSet in packageItem.Package.DependencySets) {
                 foreach (var dep in depSet.Dependencies) {
                     // get all the packages that match this dependency
-                    var depRefs = dep.VersionSpec == null ? GetPackageById(dep.Id).ToArray() : GetPackageByIdAndVersionSpec(dep.Id, dep.VersionSpec).ToArray();
+                    var depRefs = dep.VersionSpec == null ? GetPackageById(dep.Id).ToArray() : GetPackageByIdAndVersionSpec(dep.Id, dep.VersionSpec, true).ToArray();
 
                     if (depRefs.Length == 0) {
                         Error("DependencyResolutionFailure", "Unable to resolve dependent package '{0} v{1}'", dep.Id, ((object)dep.VersionSpec ?? "").ToString());
@@ -746,74 +816,84 @@ public bool Warning(string message, params object[] args) {
             }
         }
 
-        private static string NuGetExePath {
-            get {
-                return typeof (AggregateRepository).Assembly.Location;
-            }
+        private PackageItem ParseOutput(string line) {
+
+            return null;
         }
 
-        public bool NuGetInstall(string source, string packageId, string version, out List<Tuple<string, string>> successful, out List<Tuple<string, string>> already, out List<Tuple<string, string>> failed) {
-            var s = new List<Tuple<string, string>>();
-            var a = new List<Tuple<string, string>>();
-            var f = new List<Tuple<string, string>>();
+        private PackageItem ParseOutputFull(string source, string packageId, string version, string line) {
+            var match = _rxPkgParse.Match(line);
+            if (match.Success) {
+                var pkg = new PackageItem {
+                    Id = match.Groups["pkgId"].Value,
+                    Version = match.Groups["ver"].Value,
+                };
 
-            using (var p = AsyncProcess.Start(NuGetExePath, string.Format(@"install ""{0}"" -Version ""{1}"" -Source ""{2}"" -PackageSaveMode ""nuspec;nupkg""  -OutputDirectory ""{3}"" -Verbosity detailed",packageId, version, source, Destination))) {
+                // if this was the package we started with, we can assume a bit more info,
+                if (pkg.Id == packageId && pkg.Version == version) {
+                    pkg.Source = source;
+                }
+                pkg.FullPath = Path.Combine(Destination, ExcludeVersion ? pkg.Id : pkg.FullName);
+                return pkg;
+            }
+            return null;
+        }
+
+        internal InstallResult NuGetInstall(string source, string packageId, string version) {
+            var result = new InstallResult();
+
+            using (var p = AsyncProcess.Start(NuGetExePath, string.Format(@"install ""{0}"" -Version ""{1}"" -Source ""{2}"" -PackageSaveMode ""{4}""  -OutputDirectory ""{3}"" -Verbosity detailed {5}", packageId, version, source, Destination, PackageSaveMode, ExcludeVersion ? "-ExcludeVersion" : "" ))) {
                 foreach (var l in p.StandardOutput) {
                     if (string.IsNullOrEmpty(l)) {
                         continue;
                     }
-                    Verbose("NuGet", l, null);
+
+                    Verbose("NuGet: {0}", l);
                     // Successfully installed 'ComicRack 0.9.162'.
                     if (l.Contains("Successfully installed")) {
-                        var pkg = _rxPkgParse.Match(l);
-                        s.Add(new Tuple<string, string>(pkg.Groups["pkgId"].Value, pkg.Groups["ver"].Value));
+                        result.GetOrAdd( InstallStatus.Successful , () => new List<PackageItem>()).Add( ParseOutputFull(source, packageId, version, l));
                         continue;
-                    }
+                    };
 
                     if (l.Contains("already installed")) {
-                        var pkg = _rxPkgParse.Match(l);
-                        a.Add(new Tuple<string, string>(pkg.Groups["pkgId"].Value, pkg.Groups["ver"].Value));
+                        result.GetOrAdd(InstallStatus.AlreadyPresent, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
                         continue;
                     }
 
                     if (l.Contains("not installed")) {
-                        var pkg = _rxPkgParse.Match(l);
-                        f.Add(new Tuple<string, string>(pkg.Groups["pkgId"].Value, pkg.Groups["ver"].Value));
+                        result.GetOrAdd(InstallStatus.Failed, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
                         continue;
                     }
                 }
 
-                foreach (var l in p.StandardError) {
-                    if (string.IsNullOrEmpty(l)) {
-                        continue;
-                    }
-                    Warning("NuGet", l, null);
+                foreach (var l in p.StandardError.Where(l => !string.IsNullOrEmpty(l))) {
+                    Warning("NuGet: {0}", l);
                 }
 
-                successful = s;
-                already = a;
-                failed = f;
+                // if anything failed, this is a failure.
+                // if we have a success message (and no failure), we'll count this as a success.
+                result.Status = result.ContainsKey(InstallStatus.Failed) ? InstallStatus.Failed : result.ContainsKey(InstallStatus.Successful)? InstallStatus.Successful : InstallStatus.AlreadyPresent;
 
-                return p.ExitCode == 0;
+                return result;
             }
         }
 
-        internal IEnumerable<PackageReference> GetPackageByIdAndVersionSpec(string name, IVersionSpec versionSpec) {
+        internal IEnumerable<PackageItem> GetPackageByIdAndVersionSpec(string name, IVersionSpec versionSpec, bool allowUnlisted = false) {
             if (string.IsNullOrEmpty(name)) {
-                return Enumerable.Empty<PackageReference>();
+                return Enumerable.Empty<PackageItem>();
             }
 
             return Repositories.AsParallel().SelectMany(repository => {
-                var pkgs = repository.FindPackages(name, versionSpec, AllowPrereleaseVersions, false);
+                var pkgs = repository.FindPackages(name, versionSpec, AllowPrereleaseVersions, allowUnlisted);
 
                 /*
                 // necessary?
                 pkgs = from p in pkgs where p.IsLatestVersion select p;
                 */
 
-                var pkgs2 = (IEnumerable<IPackage>)pkgs;
+                var pkgs2 = pkgs.ToArray();
 
-                return pkgs2.Select(pkg => new PackageReference {
+                return pkgs2.Select(pkg => new PackageItem {
                     Package = pkg,
                     Source = repository.Source,
                     FastPath = MakeFastPath(repository.Source, pkg.Id, pkg.Version.ToString())
@@ -821,88 +901,50 @@ public bool Warning(string message, params object[] args) {
             }).OrderByDescending(each => each.Package.Version);
         }
 
-        internal bool InstallSinglePackage(PackageReference packageReference) {
-            List<Tuple<string, string>> success;
-            List<Tuple<string, string>> already;
-            List<Tuple<string, string>> failed;
+        internal bool InstallSinglePackage(PackageItem packageItem) {
 
-            if (ShouldProcessPackageInstall(packageReference.Id, packageReference.Version, packageReference.Source)) {
-                // Get NuGet to install the SoftwareIdentity
+            if (ShouldProcessPackageInstall(packageItem.Id, packageItem.Version, packageItem.Source)) {
+                // Get NuGet to install the Package
 
-                if (NuGetInstall(packageReference.Source, packageReference.Id, packageReference.Version, out success, out already, out failed)) {
-                    // NuGet Installations went ok. 
-                    switch (success.Count) {
-                        case 0:
-                            // didn't actually install anything. that's odd.
-                            if (already.Count > 0 && failed.Count == 0) {
-                                // looks like it was already there?
-                                Verbose("Skipped", "Package '{0} v{1}' already installed", packageReference.Id, packageReference.Version);
-                                return true;
-                            }
-                            else {
-                                Verbose("NotInstalled", "Package '{0} v{1}' failed to install", packageReference.Id, packageReference.Version);
-                            }
+                var results = NuGetInstall(packageItem.Source, packageItem.Id, packageItem.Version);
+
+                if (results.Status == InstallStatus.Successful) {
+                    foreach (var installedPackage in results[InstallStatus.Successful]) {
+                        if (!NotifyPackageInstalled(installedPackage.Id, installedPackage.Version, installedPackage.Source, installedPackage.FullPath)) {
+                            // the caller has expressed that they are cancelling the install.
+                            Verbose("NotifyPackageInstalled returned false--This is unexpected");
+                            // todo: we should probablty uninstall this package unless the user said leave broken stuff behind
                             return false;
-
-                        case 1:
-                            try {
-                                // awesome. Just like we thought should happen
-                                if (PackageInstalled(success[0].Item1, success[0].Item2, packageReference.Source ,Path.Combine(Destination, success[0].Item1))) {
-                                    YieldPackage(packageReference.FastPath, packageReference.Id, packageReference.Version, "semver", packageReference.Package.Summary, GetNameForSource(packageReference.Source), packageReference.FastPath);
-                                    return true;
-                                }
-                                else {
-                                    Verbose("PostProcessPackageInstall returned false", "This is unexpected");
-                                }
-                            }
-                            catch (Exception e) {
-                                // Sad. Package had a problem.
-                                // roll it back.
-                                Verbose("PostProcessPackageInstall or YieldPackage threw exception", "{0}/{1} \r\n{2}", e.GetType().Name, e.Message, e.StackTrace);
-                                e.Dump(this);
-                            }
-                            if (!ContinueOnFailure) {
-                                UninstallPackage(packageReference.FastPath, true);
-                            }
-                            return false;
-
-                        default:
-                            // what? more than one installed. Not good. Roll em back and complain.
-                            // uninstall package.
-                            Error("SomethingBad", "Package '{0} v{1}' installed more than one package, and this was unexpected", packageReference.Id, packageReference.Version);
-                            break;
+                        } 
+                        YieldPackage(packageItem.FastPath, packageItem.Id, packageItem.Version, "semver", packageItem.Package.Summary, GetNameForSource(packageItem.Source), packageItem.FastPath, installedPackage.FullPath, installedPackage.PackageFilename);
+                        // yay!
                     }
+                    return true;
                 }
-            }
-            else {
-                return WhatIf();
-            }
 
+                if (results.Status == InstallStatus.AlreadyPresent) {
+                    // hmm Weird.
+                    Verbose("Skipped Package '{0} v{1}' already installed", packageItem.Id, packageItem.Version);
+                    return true;
+                }
+
+                Error("Package '{0} v{1}' installed more than one package, and this was unexpected", packageItem.Id, packageItem.Version);
+            }
             return false;
         }
 
         private void UninstallPackage(string fastPath, bool isRollingBack) {
-
         }
     }
 
-    internal class PackageReference {
-        internal IPackage Package { get; set; }
-        internal string Source { get; set; }
-        internal string FastPath { get; set; }
+    internal enum InstallStatus {
+        Unknown,
+        Successful,
+        Failed,
+        AlreadyPresent
+    }
 
-        internal bool IsPackageFile { get; set; }
-
-        internal string Id {
-            get {
-                return Package.Id;
-            }
-        }
-
-        internal string Version {
-            get {
-                return Package.Version.ToString();
-            }
-        }
+    internal class InstallResult : Dictionary<InstallStatus, List<PackageItem>> {
+        internal InstallStatus Status = InstallStatus.Unknown;
     }
 }

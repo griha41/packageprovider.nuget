@@ -50,6 +50,7 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="NuGetProvider.cs" />
     <Compile Include="Enums.cs" />
+    <Compile Include="PackageReference.cs" />
     <Compile Include="PackageSource.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Request.cs" />

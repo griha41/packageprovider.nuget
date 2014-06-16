@@ -239,7 +239,7 @@ namespace OneGet.PackageProvider.NuGet {
         /// <remarks>
         /// </remarks>
         public static string UnprotectForUser(this IEnumerable<byte> binaryData, string salt) {
-            var data = binaryData.UnprotectBinaryForUser(salt);
+            var data = binaryData.UnprotectBinaryForUser(salt).ToArray();
             return data.Any() ? data.ToUtf8String() : String.Empty;
         }
 
@@ -252,7 +252,7 @@ namespace OneGet.PackageProvider.NuGet {
         /// <remarks>
         /// </remarks>
         public static string UnprotectForMachine(this IEnumerable<byte> binaryData, string salt) {
-            var data = binaryData.UnprotectBinaryForMachine(salt);
+            var data = binaryData.UnprotectBinaryForMachine(salt).ToArray();
             return data.Any() ? data.ToUtf8String() : String.Empty;
         }
 

@@ -12,7 +12,7 @@
 //  limitations under the License.
 //
 
-namespace Microsoft.OneGet.Core.Platform {
+namespace OneGet.PackageProvider.NuGet {
     using System;
     using System.Collections;
     using System.Collections.Concurrent;
