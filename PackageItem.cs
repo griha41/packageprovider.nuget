@@ -65,7 +65,7 @@ namespace OneGet.PackageProvider.NuGet {
                     return Path.GetFileName(Source);
                 }
 
-                return FullName + ".nupkg";
+                return Id + "." + Version+ ".nupkg";
             }
         }
 

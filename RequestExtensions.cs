@@ -15,102 +15,127 @@
 namespace OneGet.PackageProvider.NuGet {
     using System;
     using System.Collections.Generic;
-    using System.IO;
     using System.Linq;
     using System.Runtime.InteropServices;
     using System.Security;
     using System.Security.Cryptography;
     using System.Text;
+    using Callback = System.MarshalByRefObject;
 
-    internal static class Extensions {
-        public static Dictionary<TKey, TElement> ToDictionaryNicely<TSource, TKey, TElement>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector, IEqualityComparer<TKey> comparer) {
-            if (source == null) {
-                throw new ArgumentNullException("source");
-            }
-            if (keySelector == null) {
-                throw new ArgumentNullException("keySelector");
-            }
-            if (elementSelector == null) {
-                throw new ArgumentNullException("elementSelector");
-            }
-
-            var d = new Dictionary<TKey, TElement>(comparer);
-            foreach (var element in source) {
-                d.AddOrSet(keySelector(element), elementSelector(element));
-            }
-
-            return d;
-        }
-
-        public static TValue AddOrSet<TKey, TValue>(this IDictionary<TKey, TValue> dictionary, TKey key, TValue value) {
-            lock (dictionary) {
-                if (dictionary.ContainsKey(key)) {
-                    dictionary[key] = value;
-                } else {
-                    dictionary.Add(key, value);
-                }
-            }
-            return value;
-        }
-
-        public static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dictionary, TKey key, Func<TValue> valueFunction) {
-            lock (dictionary) {
-                return dictionary.ContainsKey(key) ? dictionary[key] : dictionary.AddOrSet(key, valueFunction());
-            }
-        }
-       
+    #region copy requestextension-implementation
+public static class RequestExtensions {
+        private static dynamic _remoteDynamicInterface;
+        private static dynamic _localDynamicInterface;
 
         /// <summary>
-        ///     This takes a string that is representative of a filename and tries to create a path that can be considered the
-        ///     'canonical' path. path on drives that are mapped as remote shares are rewritten as their \\server\share\path
+        ///  This is the Instance for DynamicInterface that we use when we're giving another AppDomain a remotable object.
         /// </summary>
-        /// <returns> </returns>
-        public static string CanonicalizePath(this string path, bool isPotentiallyRelativePath) {
-            Uri pathUri = null;
-            try {
-                pathUri = new Uri(path);
-                if (!pathUri.IsFile) {
-                    // perhaps try getting the fullpath
-                    try {
-                        pathUri = new Uri(Path.GetFullPath(path));
-                    }
-                    catch {
-                        throw new Exception(string.Format("PathIsNotUri {0} {1}",path, pathUri));
-                    }
-                }
-
-                // is this a unc path?
-                if (string.IsNullOrEmpty(pathUri.Host)) {
-                    // no, this is a drive:\path path
-                    // use API to resolve out the drive letter to see if it is a remote 
-                    var drive = pathUri.Segments[1].Replace('/', '\\'); // the zero segment is always just '/' 
-
-                    var sb = new StringBuilder(512);
-                    var size = sb.Capacity;
-
-                    var error = NativeMethods.WNetGetConnection(drive, sb, ref size);
-                    if (error == 0) {
-                        if (pathUri.Segments.Length > 2) {
-                            return pathUri.Segments.Skip(2).Aggregate(sb.ToString().Trim(), (current, item) => current + item);
-                        }
-                    }
-                }
-                // not a remote (or resovably-remote) path or 
-                // it is already a path that is in it's correct form (via localpath)
-                return pathUri.LocalPath;
-            }
-            catch (UriFormatException) {
-                // we could try to see if it is a relative path...
-                if (isPotentiallyRelativePath) {
-                    return CanonicalizePath(Path.GetFullPath(path), false);
-                }
-                throw new ArgumentException("specified path can not be resolved as a file name or path (unc, url, localpath)", path);
+        public static dynamic LocalDynamicInterface {
+            get {
+                return _localDynamicInterface ?? (_localDynamicInterface = Activator.CreateInstance(RemoteDynamicInterface.GetType()));
             }
         }
 
-#if  ELSEWHERE
-         public static bool IsTrue(this string text) {
-            return !string.IsNullOrEmpty( text)  && text.Equals("true", StringComparison.CurrentCultureIgnoreCase);
+        /// <summary>
+        /// The is the instance of the DynamicInteface service from the calling AppDomain
+        /// </summary>
+        public static dynamic RemoteDynamicInterface {
+            get {
+                return _remoteDynamicInterface;
+            }
+            set {
+                if (_remoteDynamicInterface == null) {
+                    _remoteDynamicInterface = value;
+                }
+            }
+        }
+
+        /// <summary>
+        /// This is called to adapt an object from a foreign app domain to a known interface
+        /// In this appDomain
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="instance"></param>
+        /// <returns></returns>
+        public static T As<T>(this object instance) {
+            return RemoteDynamicInterface.Create<T>(instance);
+        }
+
+        /// <summary>
+        ///  This is called to adapt and extend an object that we wish to pass to a foreign app domain
+        /// </summary>
+        /// <param name="obj">The base object that we are passing</param>
+        /// <param name="tInterface">the target interface (from the foreign appdomain)</param>
+        /// <param name="objects">the overriding objects (may be anonymous objects with Delegates, or an object with methods)</param>
+        /// <returns></returns>
+        public static MarshalByRefObject Extend(this object obj, Type tInterface, params object[] objects) {
+            return LocalDynamicInterface.Create(tInterface, objects, obj);
+        }
+
+        // more extensions
+
+        /// <summary>
+        ///     Encodes the string as an array of UTF8 bytes.
+        /// </summary>
+        /// <param name="text"> The text. </param>
+        /// <returns> </returns>
+        /// <remarks>
+        /// </remarks>
+        public static byte[] ToByteArray(this string text) {
+            return Encoding.UTF8.GetBytes(text);
+        }
+
+        /// <summary>
+        ///     Creates a string from a collection of UTF8 bytes
+        /// </summary>
+        /// <param name="bytes"> The bytes. </param>
+        /// <returns> </returns>
+        /// <remarks>
+        /// </remarks>
+        public static string ToUtf8String(this IEnumerable<byte> bytes) {
+            var data = bytes.ToArray();
+            try {
+                return Encoding.UTF8.GetString(data);
+            }
+            finally {
+                Array.Clear(data, 0, data.Length);
+            }
+        }
+
+        public static string ToUnicodeString(this IEnumerable<byte> bytes) {
+            var data = bytes.ToArray();
+            try {
+                return Encoding.Unicode.GetString(data);
+            }
+            finally {
+                Array.Clear(data, 0, data.Length);
+            }
+        }
+
+        public static string ToBase64(this string text) {
+            if (text == null) {
+                return null;
+            }
+            return Convert.ToBase64String(text.ToByteArray());
+        }
+
+        public static string FromBase64(this string text) {
+            if (text == null) {
+                return null;
+            }
+            return Convert.FromBase64String(text).ToUtf8String();
+        }
+
+        public static bool Is(this string str) {
+            return !string.IsNullOrEmpty(str);
+        }
+
+        public static bool IsEmptyOrNull(this string str) {
+            return string.IsNullOrEmpty(str);
+        }
+
+        public static bool IsTrue(this string text) {
+            return text.Is() && text.Equals("true", StringComparison.CurrentCultureIgnoreCase);
         }
 
         /// <summary>
@@ -315,72 +340,8 @@ namespace OneGet.PackageProvider.NuGet {
 
             Marshal.ZeroFreeGlobalAllocUnicode(unmanagedString);
         }
-
-        /// <summary>
-        ///     Encodes the string as an array of UTF8 bytes.
-        /// </summary>
-        /// <param name="text"> The text. </param>
-        /// <returns> </returns>
-        /// <remarks>
-        /// </remarks>
-        public static byte[] ToByteArray(this string text) {
-            return Encoding.UTF8.GetBytes(text);
-        }
-
-        /// <summary>
-        ///     Creates a string from a collection of UTF8 bytes
-        /// </summary>
-        /// <param name="bytes"> The bytes. </param>
-        /// <returns> </returns>
-        /// <remarks>
-        /// </remarks>
-        public static string ToUtf8String(this IEnumerable<byte> bytes) {
-            var data = bytes.ToArray();
-            try {
-                return Encoding.UTF8.GetString(data);
-            }
-            finally {
-                Array.Clear(data, 0, data.Length);
-            }
-        }
-
-        public static string ToUnicodeString(this IEnumerable<byte> bytes) {
-            var data = bytes.ToArray();
-            try {
-                return Encoding.Unicode.GetString(data);
-            }
-            finally {
-                Array.Clear(data, 0, data.Length);
-            }
-        }
-
-        public static string ToBase64(this string text) {
-            if (text == null) {
-                return null;
-            }
-            return Convert.ToBase64String(text.ToByteArray());
-        }
-
-        public static string FromBase64(this string text) {
-            if (text == null) {
-                return null;
-            }
-            return Convert.FromBase64String(text).ToUtf8String();
-        }
-#endif
-        public static void Dump(this Exception e, Request request) {
-            var text = string.Format("{0}//{1}/{2}\r\n{3}", AppDomain.CurrentDomain.FriendlyName, e.GetType().Name, e.Message, e.StackTrace);
-            request.Verbose("Exception : {0}", text);
-        }
-
-        public static bool DirectoryHasDriveLetter(this string input) {
-            return !string.IsNullOrEmpty(input) && Path.IsPathRooted(input) && input.Length >= 2 && input[1] == ':';
-        }
     }
 
-    public static class NativeMethods {
-        [DllImport("mpr.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern int WNetGetConnection([MarshalAs(UnmanagedType.LPTStr)] string localName, [MarshalAs(UnmanagedType.LPTStr)] StringBuilder remoteName, ref int length);
+    #endregion
 
-    }
 }

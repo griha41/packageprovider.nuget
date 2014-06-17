@@ -15,11 +15,9 @@
 namespace OneGet.PackageProvider.NuGet {
     using System;
     using System.Collections.Generic;
-    using System.ComponentModel.Design;
     using System.IO;
     using System.Linq;
     using System.Security;
-    using System.Security.Cryptography.X509Certificates;
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Xml.Linq;
@@ -95,11 +93,11 @@ namespace OneGet.PackageProvider.NuGet {
 
         public abstract IEnumerable<string> GetOptionValues(int category, string key);
 
-        public abstract IEnumerable<string> GetSpecifiedPackageSources();
+        public abstract IEnumerable<string> GetSources();
 
         public abstract string GetCredentialUsername();
 
-        public abstract SecureString GetCredentialPassword();
+        public abstract string GetCredentialPassword();
 
         public abstract bool ShouldContinueWithUntrustedPackageSource(string package, string packageSource);
 
@@ -255,6 +253,22 @@ public bool Warning(string message, params object[] args) {
             return string.Format(message, args);
         }
 
+        public SecureString Password {
+            get {
+                var p = GetCredentialPassword();
+                if (p == null) {
+                    return null;
+                }
+                return p.FromProtectedString("salt");
+            }
+        }
+
+        public string Username {
+            get {
+                return  GetCredentialUsername();
+            }
+        }
+
         public void Dispose() {
         }
 
@@ -269,7 +283,7 @@ public bool Warning(string message, params object[] args) {
         }
 
         internal MarshalByRefObject Extend(params object[] objects) {
-            return DynamicExtensions.Extend(this, GetIRequestInterface(), objects);
+            return RequestExtensions.Extend(this, GetIRequestInterface(), objects);
         }
 
         #endregion
@@ -316,7 +330,7 @@ public bool Warning(string message, params object[] args) {
 
         internal string Destination {
             get {
-                return GetValue(OptionCategory.Install, "Destination");
+                return Path.GetFullPath(GetValue(OptionCategory.Install, "Destination"));
             }
         }
 
@@ -415,7 +429,7 @@ public bool Warning(string message, params object[] args) {
 
         internal IEnumerable<PackageSource> SelectedSources {
             get {
-                var sources = (GetSpecifiedPackageSources() ?? Enumerable.Empty<string>()).ToArray();
+                var sources = (GetSources() ?? Enumerable.Empty<string>()).ToArray();
                 var pkgSources = RegisteredPackageSources;
 
                 if (sources.Length == 0) {
@@ -518,7 +532,7 @@ public bool Warning(string message, params object[] args) {
 
         internal void RemovePackageSource(string id) {
             var config = Config;
-            var source = config.XPathSelectElements(string.Format("/configuration/packageSources/add[@id='{0}']", id)).FirstOrDefault();
+            var source = config.XPathSelectElements(string.Format("/configuration/packageSources/add[@key='{0}']", id)).FirstOrDefault();
             if (source != null) {
                 source.Remove();
                 Config = config;
@@ -817,7 +831,6 @@ public bool Warning(string message, params object[] args) {
         }
 
         private PackageItem ParseOutput(string line) {
-
             return null;
         }
 
@@ -842,7 +855,10 @@ public bool Warning(string message, params object[] args) {
         internal InstallResult NuGetInstall(string source, string packageId, string version) {
             var result = new InstallResult();
 
-            using (var p = AsyncProcess.Start(NuGetExePath, string.Format(@"install ""{0}"" -Version ""{1}"" -Source ""{2}"" -PackageSaveMode ""{4}""  -OutputDirectory ""{3}"" -Verbosity detailed {5}", packageId, version, source, Destination, PackageSaveMode, ExcludeVersion ? "-ExcludeVersion" : "" ))) {
+            using (
+                var p = AsyncProcess.Start(NuGetExePath,
+                    string.Format(@"install ""{0}"" -Version ""{1}"" -Source ""{2}"" -PackageSaveMode ""{4}""  -OutputDirectory ""{3}"" -Verbosity detailed {5}", packageId, version, source, Destination, PackageSaveMode, ExcludeVersion ? "-ExcludeVersion" : ""))
+                ) {
                 foreach (var l in p.StandardOutput) {
                     if (string.IsNullOrEmpty(l)) {
                         continue;
@@ -851,9 +867,10 @@ public bool Warning(string message, params object[] args) {
                     Verbose("NuGet: {0}", l);
                     // Successfully installed 'ComicRack 0.9.162'.
                     if (l.Contains("Successfully installed")) {
-                        result.GetOrAdd( InstallStatus.Successful , () => new List<PackageItem>()).Add( ParseOutputFull(source, packageId, version, l));
+                        result.GetOrAdd(InstallStatus.Successful, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
                         continue;
-                    };
+                    }
+                    ;
 
                     if (l.Contains("already installed")) {
                         result.GetOrAdd(InstallStatus.AlreadyPresent, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
@@ -872,7 +889,7 @@ public bool Warning(string message, params object[] args) {
 
                 // if anything failed, this is a failure.
                 // if we have a success message (and no failure), we'll count this as a success.
-                result.Status = result.ContainsKey(InstallStatus.Failed) ? InstallStatus.Failed : result.ContainsKey(InstallStatus.Successful)? InstallStatus.Successful : InstallStatus.AlreadyPresent;
+                result.Status = result.ContainsKey(InstallStatus.Failed) ? InstallStatus.Failed : result.ContainsKey(InstallStatus.Successful) ? InstallStatus.Successful : InstallStatus.AlreadyPresent;
 
                 return result;
             }
@@ -902,7 +919,6 @@ public bool Warning(string message, params object[] args) {
         }
 
         internal bool InstallSinglePackage(PackageItem packageItem) {
-
             if (ShouldProcessPackageInstall(packageItem.Id, packageItem.Version, packageItem.Source)) {
                 // Get NuGet to install the Package
 
@@ -915,7 +931,7 @@ public bool Warning(string message, params object[] args) {
                             Verbose("NotifyPackageInstalled returned false--This is unexpected");
                             // todo: we should probablty uninstall this package unless the user said leave broken stuff behind
                             return false;
-                        } 
+                        }
                         YieldPackage(packageItem.FastPath, packageItem.Id, packageItem.Version, "semver", packageItem.Package.Summary, GetNameForSource(packageItem.Source), packageItem.FastPath, installedPackage.FullPath, installedPackage.PackageFilename);
                         // yay!
                     }

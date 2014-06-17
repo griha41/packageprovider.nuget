@@ -25,7 +25,7 @@ namespace OneGet.PackageProvider.NuGet {
         private static readonly string[] _empty = new string[0];
 
         private static readonly Dictionary<string,string[]> _features = new Dictionary<string, string[]> {
-            { "supports-powershell-get", _empty },
+            { "supports-powershellget-modules", _empty },
             { "schemes", new [] {"http", "https", "file"} },
             { "extensions", new [] {"nupkg"} },
             { "magic-signatures", _empty },
@@ -46,7 +46,7 @@ namespace OneGet.PackageProvider.NuGet {
         }
 
         public void InitializeProvider(object dynamicInterface, Callback c) {
-            DynamicExtensions.RemoteDynamicInterface = dynamicInterface;
+            RequestExtensions.RemoteDynamicInterface = dynamicInterface;
             _features.AddOrSet("exe", new[] {
                 Assembly.GetAssembly(typeof(global::NuGet.PackageSource)).Location
             });
@@ -107,9 +107,9 @@ namespace OneGet.PackageProvider.NuGet {
             }
         }
 
-        public void GetPackageSources(Callback c) {
+        public void ResolvePackageSources(Callback c) {
             using (var request = c.As<Request>()) {
-                request.Debug("Calling 'NuGet::GetPackageSources'");
+                request.Debug("Calling 'NuGet::ResolvePackageSources'");
 
                 foreach (var source in request.SelectedSources) {
                     request.YieldPackageSource(source.Name, source.Location, source.Trusted, source.IsRegistered);
@@ -175,6 +175,7 @@ namespace OneGet.PackageProvider.NuGet {
             }
         }
 
+        /* NOT SUPPORTED BY NUGET -- AT THIS TIME 
         public void FindPackageByUri(Uri uri, int id, Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::FindPackageByUri'");
@@ -186,6 +187,7 @@ namespace OneGet.PackageProvider.NuGet {
                 // that we support.
             }
         }
+         */
 
         public void GetInstalledPackages(string name, Callback c) {
             using (var request = c.As<Request>()) {
@@ -308,6 +310,12 @@ namespace OneGet.PackageProvider.NuGet {
         public void UninstallPackage(string fastPath, Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::UninstallPackage'");
+                var pkg = request.GetPackageByFastpath(fastPath);
+
+                if (Directory.Exists(pkg.FullPath)) {
+                    request.DeleteFolder(pkg.FullPath,request.RemoteThis);
+                    request.YieldPackage(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, request.GetNameForSource(pkg.Source), pkg.Id, pkg.FullPath, pkg.PackageFilename); 
+                }
             }
         }
     }
