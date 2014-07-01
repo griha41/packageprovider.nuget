@@ -103,16 +103,26 @@ namespace OneGet.PackageProvider.NuGet {
                 if (src != null) {
                     request.RemovePackageSource(src.Name);
                 }
-                request.AddPackageSource(name, location, trusted);
+
+                if (!request.SkipValidate) {
+
+                    if (request.ValidateSourceLocation(location)) {
+                        request.AddPackageSource(name, location, trusted, true);
+                        return;
+                    }
+                    // not valid
+                    request.Error("SOURCE_LOCATION_NOT_VALID", location);
+                }
+
+                request.AddPackageSource(name, location, trusted,false);
             }
         }
 
         public void ResolvePackageSources(Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::ResolvePackageSources'");
-
                 foreach (var source in request.SelectedSources) {
-                    request.YieldPackageSource(source.Name, source.Location, source.Trusted, source.IsRegistered);
+                    request.YieldPackageSource(source.Name, source.Location, source.Trusted, source.IsRegistered, source.IsValidated);
                 }
             }
         }
@@ -127,7 +137,7 @@ namespace OneGet.PackageProvider.NuGet {
                 }
 
                 request.RemovePackageSource(src.Name);
-                request.YieldPackageSource(src.Name, src.Location, src.Trusted, src.IsRegistered);
+                request.YieldPackageSource(src.Name, src.Location, src.Trusted, false, src.IsValidated);
             }
         }
 

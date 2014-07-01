@@ -18,5 +18,6 @@ namespace OneGet.PackageProvider.NuGet {
         internal string Location {get; set;}
         internal bool Trusted {get; set;}
         internal bool IsRegistered { get; set; }
+        internal bool IsValidated { get; set; }
     }
 }

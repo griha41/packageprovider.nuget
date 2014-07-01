@@ -17,6 +17,7 @@ namespace OneGet.PackageProvider.NuGet {
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Runtime.Remoting.Messaging;
     using System.Security;
     using System.Text;
     using System.Text.RegularExpressions;
@@ -186,7 +187,7 @@ namespace OneGet.PackageProvider.NuGet {
         /// <param name="isTrusted"></param>
         /// <param name="isRegistered"></param>
         /// <returns></returns>
-        public abstract bool YieldPackageSource(string name, string location, bool isTrusted,bool isRegistered);
+        public abstract bool YieldPackageSource(string name, string location, bool isTrusted,bool isRegistered, bool isValidated);
 
         /// <summary>
         ///     Used by a provider to return the fields for a Metadata Definition
@@ -411,8 +412,10 @@ public bool Warning(string message, params object[] args) {
                             Location = each.Attribute("value").Value,
                             Trusted = each.Attributes("trusted").Any() && each.Attribute("trusted").Value.IsTrue(),
                             IsRegistered = true,
+                            IsValidated = each.Attributes("validated").Any() && each.Attribute("validated").Value.IsTrue(),
                         }, StringComparer.OrdinalIgnoreCase);
-                } catch {
+                } catch (Exception e) {
+                    e.Dump(this);
                 }
                 return new Dictionary<string, PackageSource> {
                     {
@@ -421,6 +424,7 @@ public bool Warning(string message, params object[] args) {
                             Location = "https://www.nuget.org/api/v2/",
                             Trusted = false,
                             IsRegistered = false,
+                            IsValidated = true,
                         }
                     }
                 };
@@ -442,6 +446,7 @@ public bool Warning(string message, params object[] args) {
 
                 // otherwise, return packaeg sources that match the items given.
                 foreach (var src in sources) {
+                   
                     // check to see if we have a source with either that name 
                     // or that URI first.
                     if (pkgSources.ContainsKey(src)) {
@@ -449,9 +454,13 @@ public bool Warning(string message, params object[] args) {
                         continue;
                     }
 
-                    var byLocation = pkgSources.Values.FirstOrDefault(each => each.Location == src);
-                    if (byLocation != null) {
-                        yield return byLocation;
+                    var srcLoc = src;
+                    bool found = false;
+                    foreach (var byLoc in pkgSources.Values.Where(each => each.Location == srcLoc)) {
+                        yield return byLoc;
+                        found = true;
+                    }
+                    if (found) {
                         continue;
                     }
 
@@ -461,18 +470,29 @@ public bool Warning(string message, params object[] args) {
                         var srcUri = new Uri(src);
                         if (NuGetProvider.SupportedSchemes.Contains(srcUri.Scheme.ToLower())) {
                             // it's one of our supported uri types.
-                            if (SkipValidate || ValidateSourceUri(srcUri)) {
+                            var isValidated = false;
+
+                            if (!SkipValidate) {
+                                isValidated = ValidateSourceUri(srcUri);
+                            }
+
+                            if (SkipValidate || isValidated) {
                                 yield return new PackageSource {
                                     Location = srcUri.ToString(),
                                     Name = srcUri.ToString(),
                                     Trusted = false,
                                     IsRegistered = false,
+                                    IsValidated = isValidated,
                                 };
                                 continue;
-                            }
+                            } 
+                            Error("SOURCE_LOCATION_NOT_VALID", src);
+                            Warning("UNKNOWN_SOURCE", src);
+                            continue;
                         }
+
                         // hmm. not a valid location?
-                        Warning("URI_SCHEME_NOT_SUPPORTED", src);
+                        Error("URI_SCHEME_NOT_SUPPORTED", src);
                         Warning("UNKNOWN_SOURCE", src);
                         continue;
                     }
@@ -484,6 +504,7 @@ public bool Warning(string message, params object[] args) {
                             Name = src,
                             Trusted = true,
                             IsRegistered = false,
+                            IsValidated = true,
                         };
                     } else {
                         // hmm. not a valid location?
@@ -539,7 +560,7 @@ public bool Warning(string message, params object[] args) {
             }
         }
 
-        internal void AddPackageSource(string name, string location, bool isTrusted) {
+        internal void AddPackageSource(string name, string location, bool isTrusted, bool isValidated) {
             if (SkipValidate || ValidateSourceLocation(location)) {
                 var config = Config;
                 var sources = config.XPathSelectElements("/configuration/packageSources").FirstOrDefault();
@@ -549,6 +570,9 @@ public bool Warning(string message, params object[] args) {
                 var source = new XElement("add");
                 source.SetAttributeValue("key", name);
                 source.SetAttributeValue("value", location);
+                if (isValidated) {
+                    source.SetAttributeValue("validated", true);
+                }
                 if (isTrusted) {
                     source.SetAttributeValue("trusted", true);
                 }
@@ -571,7 +595,7 @@ public bool Warning(string message, params object[] args) {
             return null;
         }
 
-        private bool ValidateSourceLocation(string location) {
+        internal bool ValidateSourceLocation(string location) {
             if (Uri.IsWellFormedUriString(location, UriKind.Absolute)) {
                 return ValidateSourceUri(new Uri(location));
             }
@@ -592,12 +616,22 @@ public bool Warning(string message, params object[] args) {
                 return false;
             }
 
-            if (SkipValidate) {
+            // todo: do a get on the uri and see if it responds.
+            try {
+                var repo = PackageRepositoryFactory.Default.CreateRepository(srcUri.ToString());
+                var drepo = repo as DataServicePackageRepository;
+                if (drepo != null) {
+                    drepo.FindPackagesById("xx");
+                    return true;
+                }
+                // return repo.GetPackages()
+                // return true;
                 return true;
+            } catch {
+                // nope.
             }
 
-            // todo: do a get on the uri and see if it responds.
-            return true;
+            return false;
         }
 
         internal IEnumerable<IPackage> FilterOnVersion(IEnumerable<IPackage> pkgs, string requiredVersion, string minimumVersion, string maximumVersion) {
