@@ -173,13 +173,13 @@ namespace OneGet.PackageProvider.NuGet {
         /// <param name="fullPath"></param>
         /// <param name="packageFileName"></param>
         /// <returns></returns>
-        public abstract bool YieldPackage(string fastPath, string name, string version, string versionScheme, string summary, string source, string searchKey, string fullPath, string packageFileName);
+        public abstract bool YieldSoftwareIdentity(string fastPath, string name, string version, string versionScheme, string summary, string source, string searchKey, string fullPath, string packageFileName);
 
-        public abstract bool YieldSoftwareMetadata(string parentFastPath, string name, string value, string fieldPath);
+        public abstract bool YieldSoftwareMetadata(string parentFastPath, string name, string value);
 
-        public abstract bool YieldEntity(string parentFastPath, string name, string regid, string role, string thumbprint, string fieldPath);
+        public abstract bool YieldEntity(string parentFastPath, string name, string regid, string role, string thumbprint);
 
-        public abstract bool YieldLink(string parentFastPath, string artifact, string referenceUrl, string appliesToMedia, string ownership, string relativeTo, string mediaType, string use,string fieldPath);
+        public abstract bool YieldLink(string parentFastPath, string referenceUri, string relationship, string mediaType, string ownership, string use, string appliesToMedia, string artifact);
 
         #if M2
         public abstract bool YieldSwidtag(string fastPath, string xmlOrJsonDoc);
@@ -677,7 +677,34 @@ public bool Warning(string message, params object[] args) {
 
             foreach (var pkg in packageReferences) {
                 foundPackage = true;
-                if (!YieldPackage(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, GetNameForSource(pkg.Source), searchKey, pkg.FullPath, pkg.PackageFilename)) {
+
+                if (YieldSoftwareIdentity(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, GetNameForSource(pkg.Source), searchKey, pkg.FullPath, pkg.PackageFilename)) {
+                    // ok, 
+                    YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Copyright);
+                    YieldSoftwareMetadata(pkg.FastPath, "description", pkg.Package.Description);
+                    YieldSoftwareMetadata(pkg.FastPath, "language", pkg.Package.Language);
+                    YieldSoftwareMetadata(pkg.FastPath, "releaseNotes", pkg.Package.ReleaseNotes);
+                    YieldSoftwareMetadata(pkg.FastPath, "tags", pkg.Package.Tags);
+                    YieldSoftwareMetadata(pkg.FastPath, "title", pkg.Package.Title);
+                    YieldSoftwareMetadata(pkg.FastPath, "developmentDependency", pkg.Package.DevelopmentDependency.ToString());
+
+                    YieldLink(pkg.FastPath, pkg.Package.LicenseUrl.ToString(), "license", null, null, null, null, null);
+                    YieldLink(pkg.FastPath, pkg.Package.ProjectUrl.ToString(), "project", null, null, null, null, null);
+                    YieldLink(pkg.FastPath, pkg.Package.ReportAbuseUrl.ToString(), "abuse", null, null, null, null, null);
+                    YieldLink(pkg.FastPath, pkg.Package.IconUrl.ToString(), "icon", null, null, null, null, null);
+
+                    foreach (var author in pkg.Package.Authors) {
+                        YieldEntity(pkg.FastPath, author.Trim(), author.Trim(), "author", null);
+                    }
+                    foreach (var owner in pkg.Package.Owners) {
+                        YieldEntity(pkg.FastPath, owner.Trim(), owner.Trim(), "owner", null);
+                    }
+
+                    // YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Owners);
+                    // YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Authors);
+
+
+                } else {
                     break;
                 }
             }
@@ -976,7 +1003,7 @@ public bool Warning(string message, params object[] args) {
                             // todo: we should probablty uninstall this package unless the user said leave broken stuff behind
                             return false;
                         }
-                        YieldPackage(packageItem.FastPath, packageItem.Id, packageItem.Version, "semver", packageItem.Package.Summary, GetNameForSource(packageItem.Source), packageItem.FastPath, installedPackage.FullPath, installedPackage.PackageFilename);
+                        YieldSoftwareIdentity(packageItem.FastPath, packageItem.Id, packageItem.Version, "semver", packageItem.Package.Summary, GetNameForSource(packageItem.Source), packageItem.FastPath, installedPackage.FullPath, installedPackage.PackageFilename);
                         // yay!
                     }
                     return true;

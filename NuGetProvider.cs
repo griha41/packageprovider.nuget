@@ -179,7 +179,7 @@ namespace OneGet.PackageProvider.NuGet {
                     if (PackageHelper.IsPackageFile(filePath)) {
                         var pkg = new ZipPackage(filePath);
                         var fastPath = request.MakeFastPath(filePath, pkg.Id, pkg.Version.ToString());
-                        request.YieldPackage(fastPath, pkg.Id, pkg.Version.ToString(), "semver", "", filePath, filePath, filePath, Path.GetFileName(filePath));
+                        request.YieldSoftwareIdentity(fastPath, pkg.Id, pkg.Version.ToString(), "semver", "", filePath, filePath, filePath, Path.GetFileName(filePath));
                     }
                 }
             }
@@ -214,7 +214,7 @@ namespace OneGet.PackageProvider.NuGet {
                         // if this is an exact match, just return that.
                         if (pkg.Id.Equals(name, StringComparison.CurrentCultureIgnoreCase)) {
                             var fastpath = request.MakeFastPath(pkgFile, pkg.Id, pkg.Version.ToString());
-                            if (!request.YieldPackage(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name,Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
+                            if (!request.YieldSoftwareIdentity(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name,Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
                                 return;
                             }
                             break;
@@ -223,7 +223,7 @@ namespace OneGet.PackageProvider.NuGet {
                         //otherwise return partial matches.
                         if (string.IsNullOrEmpty(name) || pkg.Id.IndexOf(name, StringComparison.CurrentCultureIgnoreCase) > -1) {
                             var fastpath = request.MakeFastPath(pkgFile, pkg.Id, pkg.Version.ToString());
-                            if (!request.YieldPackage(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name, Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
+                            if (!request.YieldSoftwareIdentity(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name, Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
                                 return;
                             }
                         }
@@ -272,7 +272,7 @@ namespace OneGet.PackageProvider.NuGet {
                         }
                         var dr = depRefs[0];
 
-                        request.YieldPackage(request.MakeFastPath(dr.Source, dr.Id, dr.Version), dr.Id, dr.Version, "semver", dr.Package.Summary,request.GetNameForSource( dr.Source) , pkgRef.Id, pkgRef.FullPath, pkgRef.FullName );
+                        request.YieldSoftwareIdentity(request.MakeFastPath(dr.Source, dr.Id, dr.Version), dr.Id, dr.Version, "semver", dr.Package.Summary,request.GetNameForSource( dr.Source) , pkgRef.Id, pkgRef.FullPath, pkgRef.FullName );
                     }
                 }
             }
@@ -324,7 +324,7 @@ namespace OneGet.PackageProvider.NuGet {
 
                 if (Directory.Exists(pkg.FullPath)) {
                     request.DeleteFolder(pkg.FullPath,request.RemoteThis);
-                    request.YieldPackage(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, request.GetNameForSource(pkg.Source), pkg.Id, pkg.FullPath, pkg.PackageFilename); 
+                    request.YieldSoftwareIdentity(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, request.GetNameForSource(pkg.Source), pkg.Id, pkg.FullPath, pkg.PackageFilename); 
                 }
             }
         }
