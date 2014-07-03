@@ -632,10 +632,7 @@ public bool Warning(string message, params object[] args) {
                 var drepo = repo as DataServicePackageRepository;
                 if (drepo != null) {
                     drepo.FindPackagesById("xx");
-                    return true;
                 }
-                // return repo.GetPackages()
-                // return true;
                 return true;
             } catch {
                 // nope.
@@ -707,10 +704,6 @@ public bool Warning(string message, params object[] args) {
                     foreach (var owner in pkg.Package.Owners) {
                         YieldEntity(pkg.FastPath, owner.Trim(), owner.Trim(), "owner", null);
                     }
-
-                    // YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Owners);
-                    // YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Authors);
-
 
                 } else {
                     break;
