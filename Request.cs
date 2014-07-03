@@ -688,10 +688,18 @@ public bool Warning(string message, params object[] args) {
                     YieldSoftwareMetadata(pkg.FastPath, "title", pkg.Package.Title);
                     YieldSoftwareMetadata(pkg.FastPath, "developmentDependency", pkg.Package.DevelopmentDependency.ToString());
 
-                    YieldLink(pkg.FastPath, pkg.Package.LicenseUrl.ToString(), "license", null, null, null, null, null);
-                    YieldLink(pkg.FastPath, pkg.Package.ProjectUrl.ToString(), "project", null, null, null, null, null);
-                    YieldLink(pkg.FastPath, pkg.Package.ReportAbuseUrl.ToString(), "abuse", null, null, null, null, null);
-                    YieldLink(pkg.FastPath, pkg.Package.IconUrl.ToString(), "icon", null, null, null, null, null);
+                    if (pkg.Package.LicenseUrl != null) {
+                        YieldLink(pkg.FastPath, pkg.Package.LicenseUrl.ToString(), "license", null, null, null, null, null);
+                    }
+                    if (pkg.Package.ProjectUrl != null) {
+                        YieldLink(pkg.FastPath, pkg.Package.ProjectUrl.ToString(), "project", null, null, null, null, null);
+                    }
+                    if (pkg.Package.ReportAbuseUrl != null) {
+                        YieldLink(pkg.FastPath, pkg.Package.ReportAbuseUrl.ToString(), "abuse", null, null, null, null, null);
+                    }
+                    if (pkg.Package.IconUrl != null) {
+                        YieldLink(pkg.FastPath, pkg.Package.IconUrl.ToString(), "icon", null, null, null, null, null);
+                    }
 
                     foreach (var author in pkg.Package.Authors) {
                         YieldEntity(pkg.FastPath, author.Trim(), author.Trim(), "author", null);
