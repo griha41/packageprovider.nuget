@@ -88,7 +88,7 @@ namespace OneGet.PackageProvider.NuGet {
                             request.YieldDynamicOption(cat, "PackageSaveMode", OptionType.String, false,new [] {"nuspec", "nupkg", "nuspec;nupkg"} );
                             break;
                     }
-                } catch (Exception e) {
+                } catch {
                     // this makes it ignore new OptionCategories that it doesn't know about.
                 }
             }
