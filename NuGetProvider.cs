@@ -174,13 +174,9 @@ namespace OneGet.PackageProvider.NuGet {
         public void FindPackageByFile(string filePath, int id, Callback c) {
             using (var request = c.As<Request>()) {
                 request.Debug("Calling 'NuGet::FindPackageByFile'");
-                filePath = Path.GetFullPath(filePath);
-                if (File.Exists(filePath)) {
-                    if (PackageHelper.IsPackageFile(filePath)) {
-                        var pkg = new ZipPackage(filePath);
-                        var fastPath = request.MakeFastPath(filePath, pkg.Id, pkg.Version.ToString());
-                        request.YieldSoftwareIdentity(fastPath, pkg.Id, pkg.Version.ToString(), "semver", "", filePath, filePath, filePath, Path.GetFileName(filePath));
-                    }
+                var pkgItem = request.GetPackageByFilePath(Path.GetFullPath(filePath));
+                if (pkgItem != null) {
+                    request.YieldPackage(pkgItem, filePath);
                 }
             }
         }
@@ -205,31 +201,19 @@ namespace OneGet.PackageProvider.NuGet {
                 var nupkgs = Directory.EnumerateFileSystemEntries(request.Destination, "*.nupkg", SearchOption.AllDirectories);
 
                 foreach (var pkgFile in nupkgs) {
-                    if (PackageHelper.IsPackageFile(pkgFile)) {
-                        // todo: currently requires nupkg file in place.
-                        // need to fix this and the other one.
-                        var pkg = new ZipPackage(pkgFile);
-                        // todo: wildcard matching?
-
-                        // if this is an exact match, just return that.
-                        if (pkg.Id.Equals(name, StringComparison.CurrentCultureIgnoreCase)) {
-                            var fastpath = request.MakeFastPath(pkgFile, pkg.Id, pkg.Version.ToString());
-                            if (!request.YieldSoftwareIdentity(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name,Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
-                                return;
-                            }
+                    var pkgItem = request.GetPackageByFilePath(pkgFile);
+                    if (pkgItem != null) {
+                        if (pkgItem.Id.Equals(name, StringComparison.CurrentCultureIgnoreCase)) {
+                            request.YieldPackage(pkgItem, name);
                             break;
                         }
-
-                        //otherwise return partial matches.
-                        if (string.IsNullOrEmpty(name) || pkg.Id.IndexOf(name, StringComparison.CurrentCultureIgnoreCase) > -1) {
-                            var fastpath = request.MakeFastPath(pkgFile, pkg.Id, pkg.Version.ToString());
-                            if (!request.YieldSoftwareIdentity(fastpath, pkg.Id, pkg.Version.ToString(), "semver", pkg.Summary, request.GetNameForSource(pkgFile), name, Path.GetDirectoryName(pkgFile), Path.GetFileName(pkgFile))) {
+                        if (string.IsNullOrEmpty(name) || pkgItem.Id.IndexOf(name, StringComparison.CurrentCultureIgnoreCase) > -1) {
+                            if (!request.YieldPackage(pkgItem, name)) {
                                 return;
                             }
                         }
                     }
                 }
-
             }
         }
 
@@ -270,9 +254,9 @@ namespace OneGet.PackageProvider.NuGet {
                             request.Error("DependencyResolutionFailure", "Unable to resolve dependent package '{0} v{1}'", dep.Id, ((object)dep.VersionSpec ?? "").ToString());
                             throw new Exception("DependencyResolutionFailure");
                         }
-                        var dr = depRefs[0];
-
-                        request.YieldSoftwareIdentity(request.MakeFastPath(dr.Source, dr.Id, dr.Version), dr.Id, dr.Version, "semver", dr.Package.Summary,request.GetNameForSource( dr.Source) , pkgRef.Id, pkgRef.FullPath, pkgRef.FullName );
+                        foreach (var dependencyReference in depRefs) {
+                            request.YieldPackage(dependencyReference, pkgRef.Id);
+                        }
                     }
                 }
             }
@@ -324,7 +308,7 @@ namespace OneGet.PackageProvider.NuGet {
 
                 if (Directory.Exists(pkg.FullPath)) {
                     request.DeleteFolder(pkg.FullPath,request.RemoteThis);
-                    request.YieldSoftwareIdentity(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, request.GetNameForSource(pkg.Source), pkg.Id, pkg.FullPath, pkg.PackageFilename); 
+                    request.YieldPackage(pkg, pkg.Id);
                 }
             }
         }

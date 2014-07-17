@@ -13,11 +13,41 @@
 //  
 
 namespace OneGet.PackageProvider.NuGet {
+    using global::NuGet;
+
     internal class PackageSource {
         internal string Name {get; set;}
         internal string Location {get; set;}
         internal bool Trusted {get; set;}
         internal bool IsRegistered { get; set; }
         internal bool IsValidated { get; set; }
+
+        private IPackageRepository _repository;
+        internal IPackageRepository Repository {
+            get {
+                if (!IsSourceAFile) {
+                    return _repository ?? (_repository = PackageRepositoryFactory.Default.CreateRepository(Location));
+                }
+                return null;
+            }
+        }
+
+        internal bool IsSourceAFile {
+            get {
+                return false;
+            }
+        }
+
+        internal bool IsSourceADirectory {
+            get {
+                return false;
+            }
+        }
+
+        internal string Serialized {
+            get {
+                return Location.ToBase64();
+            }
+        }
     }
 }

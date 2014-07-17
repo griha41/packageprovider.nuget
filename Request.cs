@@ -18,7 +18,6 @@ namespace OneGet.PackageProvider.NuGet {
     using System.Globalization;
     using System.IO;
     using System.Linq;
-    using System.Runtime.Remoting.Messaging;
     using System.Security;
     using System.Text;
     using System.Text.RegularExpressions;
@@ -534,13 +533,7 @@ public bool Warning(string messageText, params object[] args) {
                 }
             }
         }
-
-        internal IEnumerable<IPackageRepository> Repositories {
-            get {
-                return SelectedSources.Select(each => PackageRepositoryFactory.Default.CreateRepository(each.Location)).ToArray();
-            }
-        }
-
+        
         private static string NuGetExePath {
             get {
                 return typeof (AggregateRepository).Assembly.Location;
@@ -602,13 +595,30 @@ public bool Warning(string messageText, params object[] args) {
             }
         }
 
+        private bool  LocationCloseEnoughMatch(string givenLocation, string knownLocation) {
+            if (givenLocation.Equals(knownLocation, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            // make trailing slashes consistent
+            if (givenLocation.TrimEnd('/').Equals(knownLocation.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            // and trailing backslashes
+            if (givenLocation.TrimEnd('\\').Equals(knownLocation.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+            return false;
+        }
+
         internal PackageSource FindRegisteredSource(string name) {
             var srcs = RegisteredPackageSources;
             if (srcs.ContainsKey(name)) {
                 return srcs[name];
             }
 
-            var src = srcs.Values.FirstOrDefault(each => each.Location == name);
+            var src = srcs.Values.FirstOrDefault(each =>LocationCloseEnoughMatch(name, each.Location));
             if (src != null) {
                 return src;
             }
@@ -620,7 +630,13 @@ public bool Warning(string messageText, params object[] args) {
             if (Uri.IsWellFormedUriString(location, UriKind.Absolute)) {
                 return ValidateSourceUri(new Uri(location));
             }
-            return Directory.Exists(location);
+            try {
+                if (Directory.Exists(location) || File.Exists(location)) {
+                    return true;
+                }
+            } catch {
+            }
+            return false;
         }
 
         private bool ValidateSourceUri(Uri srcUri) {
@@ -652,6 +668,68 @@ public bool Warning(string messageText, params object[] args) {
             return false;
         }
 
+        internal PackageSource ResolvePackageSource(string nameOrLocation) {
+            var source = FindRegisteredSource(nameOrLocation);
+            if (source != null) {
+                return source;
+            }
+
+            try {
+                // is the given value a filename?
+                if (File.Exists(nameOrLocation)) {
+                    return new PackageSource() {
+                        IsRegistered = false,
+                        IsValidated = true,
+                        Location = nameOrLocation,
+                        Name = nameOrLocation,
+                        Trusted = true,
+                    };
+                }
+            }
+            catch {
+            }
+
+            try {
+                // is the given value a directory?
+                if (Directory.Exists(nameOrLocation)) {
+                    return new PackageSource() {
+                        IsRegistered = false,
+                        IsValidated = true,
+                        Location = nameOrLocation,
+                        Name = nameOrLocation,
+                        Trusted = true,
+                    };
+                }
+            }
+            catch {
+            }
+
+
+            if (Uri.IsWellFormedUriString(nameOrLocation, UriKind.Absolute)) {
+                var uri = new Uri(nameOrLocation, UriKind.Absolute);
+                if (!NuGetProvider.SupportedSchemes.Contains(uri.Scheme.ToLowerInvariant())) {
+                    Error("UNSUPPORTED_URI_SCHEME_FOR_SOURCE", uri);
+                    return null;
+                }
+                
+                // this is an URI, and it looks like one type that we support
+                if (SkipValidate || ValidateSourceUri(uri)) {
+                    return new PackageSource {
+                        IsRegistered = false,
+                        IsValidated = !SkipValidate,
+                        Location = nameOrLocation,
+                        Name = nameOrLocation,
+                        Trusted = false,
+                    };
+                }    
+            }
+
+            Error("UNRESOLVED_SOURCE_LOCATION_OR_NAME", nameOrLocation);
+            return null;
+        }
+
+      
+
         internal IEnumerable<IPackage> FilterOnVersion(IEnumerable<IPackage> pkgs, string requiredVersion, string minimumVersion, string maximumVersion) {
             if (!string.IsNullOrEmpty(requiredVersion)) {
                 pkgs = pkgs.Where(each => each.Version == new SemanticVersion(requiredVersion));
@@ -668,8 +746,8 @@ public bool Warning(string messageText, params object[] args) {
             return pkgs;
         }
 
-        public string MakeFastPath(string source, string id, string version) {
-            return string.Format(@"${0}\{1}\{2}", source.ToBase64(), id.ToBase64(), version.ToBase64());
+        internal string MakeFastPath(PackageSource source, string id, string version) {
+            return string.Format(@"${0}\{1}\{2}", source.Serialized, id.ToBase64(), version.ToBase64());
         }
 
         public bool TryParseFastPath(string fastPath, out string source, out string id, out string version) {
@@ -680,86 +758,87 @@ public bool Warning(string messageText, params object[] args) {
             return match.Success;
         }
 
+        internal bool YieldPackage(PackageItem pkg, string searchKey) {
+            if (YieldSoftwareIdentity(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, pkg.PackageSource.Name, searchKey, pkg.FullPath, pkg.PackageFilename)) {
+                if (!YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Copyright)) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "description", pkg.Package.Description)) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "language", pkg.Package.Language)) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "releaseNotes", pkg.Package.ReleaseNotes)) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "tags", pkg.Package.Tags)) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "title", pkg.Package.Title)) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "developmentDependency", pkg.Package.DevelopmentDependency.ToString())) {
+                    return false;
+                }
+                if (!YieldSoftwareMetadata(pkg.FastPath, "FromTrustedSource", pkg.PackageSource.Trusted.ToString())) {
+                    return false;
+                }
+                if (pkg.Package.LicenseUrl != null) {
+                    if(!YieldLink(pkg.FastPath, pkg.Package.LicenseUrl.ToString(), "license", null, null, null, null, null)) {
+                        return false;
+                    }
+                }
+                if (pkg.Package.ProjectUrl != null) {
+                    if(!YieldLink(pkg.FastPath, pkg.Package.ProjectUrl.ToString(), "project", null, null, null, null, null)) {
+                        return false;
+                    }
+                }
+                if (pkg.Package.ReportAbuseUrl != null) {
+                    if(!YieldLink(pkg.FastPath, pkg.Package.ReportAbuseUrl.ToString(), "abuse", null, null, null, null, null) ) {
+                        return false;
+                    }
+                }
+                if (pkg.Package.IconUrl != null) {
+                    if (!YieldLink(pkg.FastPath, pkg.Package.IconUrl.ToString(), "icon", null, null, null, null, null)) {
+                        return false;
+                    }
+                }
+                if (pkg.Package.Authors.Any(author => !YieldEntity(pkg.FastPath, author.Trim(), author.Trim(), "author", null))) {
+                    return false;
+                }
+
+                if (pkg.Package.Owners.Any(owner => !YieldEntity(pkg.FastPath, owner.Trim(), owner.Trim(), "owner", null))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         internal bool YieldPackages(IEnumerable<PackageItem> packageReferences, string searchKey) {
             var foundPackage = false;
+            if (packageReferences == null) {
+                return false;
+            }
 
             foreach (var pkg in packageReferences) {
                 foundPackage = true;
-
-                if (YieldSoftwareIdentity(pkg.FastPath, pkg.Package.Id, pkg.Package.Version.ToString(), "semver", pkg.Package.Summary, GetNameForSource(pkg.Source), searchKey, pkg.FullPath, pkg.PackageFilename)) {
-                    // ok, 
-                    YieldSoftwareMetadata(pkg.FastPath, "copyright", pkg.Package.Copyright);
-                    YieldSoftwareMetadata(pkg.FastPath, "description", pkg.Package.Description);
-                    YieldSoftwareMetadata(pkg.FastPath, "language", pkg.Package.Language);
-                    YieldSoftwareMetadata(pkg.FastPath, "releaseNotes", pkg.Package.ReleaseNotes);
-                    YieldSoftwareMetadata(pkg.FastPath, "tags", pkg.Package.Tags);
-                    YieldSoftwareMetadata(pkg.FastPath, "title", pkg.Package.Title);
-                    YieldSoftwareMetadata(pkg.FastPath, "developmentDependency", pkg.Package.DevelopmentDependency.ToString());
-
-                    if (pkg.Package.LicenseUrl != null) {
-                        YieldLink(pkg.FastPath, pkg.Package.LicenseUrl.ToString(), "license", null, null, null, null, null);
-                    }
-                    if (pkg.Package.ProjectUrl != null) {
-                        YieldLink(pkg.FastPath, pkg.Package.ProjectUrl.ToString(), "project", null, null, null, null, null);
-                    }
-                    if (pkg.Package.ReportAbuseUrl != null) {
-                        YieldLink(pkg.FastPath, pkg.Package.ReportAbuseUrl.ToString(), "abuse", null, null, null, null, null);
-                    }
-                    if (pkg.Package.IconUrl != null) {
-                        YieldLink(pkg.FastPath, pkg.Package.IconUrl.ToString(), "icon", null, null, null, null, null);
-                    }
-
-                    foreach (var author in pkg.Package.Authors) {
-                        YieldEntity(pkg.FastPath, author.Trim(), author.Trim(), "author", null);
-                    }
-                    foreach (var owner in pkg.Package.Owners) {
-                        YieldEntity(pkg.FastPath, owner.Trim(), owner.Trim(), "owner", null);
-                    }
-
-                } else {
+                if (!YieldPackage(pkg, searchKey)) {
                     break;
                 }
             }
             return foundPackage;
         }
 
-        internal string GetNameForSource(string source) {
-            var apr = RegisteredPackageSources;
-
-            try {
-                if (File.Exists(source)) {
-                    return "Local File";
-                }
-            } catch {
-            }
-
-            return apr.Keys.FirstOrDefault(key => {
-                var location = apr[key].Location;
-                if (location.Equals(source, StringComparison.OrdinalIgnoreCase)) {
-                    return true;
-                }
-
-                // make trailing slashes consistent
-                if (source.TrimEnd('/').Equals(location.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) {
-                    return true;
-                }
-
-                // and trailing backslashes
-                if (source.TrimEnd('\\').Equals(location.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) {
-                    return true;
-                }
-
-                return false;
-            }) ?? source;
-        }
+    
 
         internal IEnumerable<PackageItem> GetPackageById(string name, string requiredVersion = null, string minimumVersion = null, string maximumVersion = null, bool allowUnlisted = false) {
             if (string.IsNullOrEmpty(name)) {
                 return Enumerable.Empty<PackageItem>();
             }
-            return Repositories.AsParallel().SelectMany(repository => {
+            return SelectedSources.AsParallel().SelectMany(source => {
                 try {
-                    var pkgs = repository.FindPackagesById(name);
+                    var pkgs = source.Repository.FindPackagesById(name);
 
                     if (!AllVersions && (string.IsNullOrEmpty(requiredVersion) && string.IsNullOrEmpty(minimumVersion) && string.IsNullOrEmpty(maximumVersion))) {
                         pkgs = from p in pkgs where p.IsLatestVersion select p;
@@ -768,8 +847,8 @@ public bool Warning(string messageText, params object[] args) {
                     return FilterOnVersion(pkgs, requiredVersion, minimumVersion, maximumVersion)
                         .Select(pkg => new PackageItem {
                             Package = pkg,
-                            Source = repository.Source,
-                            FastPath = MakeFastPath(repository.Source, pkg.Id, pkg.Version.ToString())
+                            PackageSource = source,
+                            FastPath = MakeFastPath(source, pkg.Id, pkg.Version.ToString())
                         });
                 } catch (Exception e) {
                     e.Dump(this);
@@ -782,46 +861,43 @@ public bool Warning(string messageText, params object[] args) {
             return pkgs.Where(each => each.Id.IndexOf(name, StringComparison.OrdinalIgnoreCase) > -1);
         }
 
-        internal PackageItem GetPackageByPath(string filePath) {
+        internal PackageItem GetPackageByFilePath(string filePath) {
+            // todo: currently requires nupkg file in place.
+            
             if (PackageHelper.IsPackageFile(filePath)) {
                 var package = new ZipPackage(filePath);
+                var source = ResolvePackageSource(filePath);
 
                 return new PackageItem {
-                    FastPath = MakeFastPath(filePath, package.Id, package.Version.ToString()),
-                    Source = Path.GetDirectoryName(filePath),
+                    FastPath = MakeFastPath(source , package.Id, package.Version.ToString()),
+                    PackageSource = source,
                     Package = package,
                     IsPackageFile = true,
+                    FullPath = filePath,
                 };
             }
             return null;
         }
 
-        internal string ResolveRepositoryLocation(string repository) {
-            var source = FindRegisteredSource(repository);
-            if (source != null) {
-                return source.Location;
-            }
-            if (ValidateSourceLocation(repository)) {
-                return repository;
-            }
-            return null;
-        }
 
         internal PackageItem GetPackageByFastpath(string fastPath) {
-            string source;
+            string sourceLocation;
             string id;
             string version;
-            if (TryParseFastPath(fastPath, out source, out id, out version)) {
-                if (source.DirectoryHasDriveLetter() && File.Exists(source)) {
-                    return GetPackageByPath(source);
+
+            if (TryParseFastPath(fastPath, out sourceLocation, out id, out version)) {
+                var source = ResolvePackageSource(sourceLocation);
+
+                if (source.IsSourceAFile) {
+                    return GetPackageByFilePath(sourceLocation);
                 }
 
-                var repo = PackageRepositoryFactory.Default.CreateRepository(ResolveRepositoryLocation(source));
-                var pkg = repo.FindPackage(id, new SemanticVersion(version));
+                var pkg = source.Repository.FindPackage(id, new SemanticVersion(version));
+
                 if (pkg != null) {
                     return new PackageItem {
                         FastPath = fastPath,
-                        Source = source,
+                        PackageSource = source,
                         Package = pkg,
                     };
                 }
@@ -830,12 +906,12 @@ public bool Warning(string messageText, params object[] args) {
         }
 
         internal IEnumerable<PackageItem> SearchForPackages(string name, string requiredVersion, string minimumVersion, string maximumVersion) {
-            return Repositories.AsParallel().SelectMany(repository => {
+            return SelectedSources.AsParallel().SelectMany(source => {
                 var criteria = Contains;
                 if (string.IsNullOrEmpty(criteria)) {
                     criteria = name;
                 }
-                var packages = repository.GetPackages().Find(criteria);
+                var packages = source.Repository.GetPackages().Find(criteria);
 
                 // why does this method return less results? It looks the same to me!?
                 // var packages = repository.Search(Hint.Is() ? Hint : name);
@@ -860,8 +936,8 @@ public bool Warning(string messageText, params object[] args) {
                 return FilterOnVersion(pkgs, requiredVersion, minimumVersion, maximumVersion)
                     .Select(pkg => new PackageItem {
                         Package = pkg,
-                        Source = repository.Source,
-                        FastPath = MakeFastPath(repository.Source, pkg.Id, pkg.Version.ToString())
+                        PackageSource = source,
+                        FastPath = MakeFastPath(source, pkg.Id, pkg.Version.ToString())
                     });
             });
         }
@@ -913,11 +989,7 @@ public bool Warning(string messageText, params object[] args) {
             }
         }
 
-        private PackageItem ParseOutput(string line) {
-            return null;
-        }
-
-        private PackageItem ParseOutputFull(string source, string packageId, string version, string line) {
+        private PackageItem ParseOutputFull(PackageSource source, string packageId, string version, string line) {
             var match = _rxPkgParse.Match(line);
             if (match.Success) {
                 var pkg = new PackageItem {
@@ -927,7 +999,7 @@ public bool Warning(string messageText, params object[] args) {
 
                 // if this was the package we started with, we can assume a bit more info,
                 if (pkg.Id == packageId && pkg.Version == version) {
-                    pkg.Source = source;
+                    pkg.PackageSource = source;
                 }
                 pkg.FullPath = Path.Combine(Destination, ExcludeVersion ? pkg.Id : pkg.FullName);
                 return pkg;
@@ -935,12 +1007,12 @@ public bool Warning(string messageText, params object[] args) {
             return null;
         }
 
-        internal InstallResult NuGetInstall(string source, string packageId, string version) {
+        internal InstallResult NuGetInstall(PackageItem item) {
             var result = new InstallResult();
 
             using (
                 var p = AsyncProcess.Start(NuGetExePath,
-                    string.Format(@"install ""{0}"" -Version ""{1}"" -Source ""{2}"" -PackageSaveMode ""{4}""  -OutputDirectory ""{3}"" -Verbosity detailed {5}", packageId, version, source, Destination, PackageSaveMode, ExcludeVersion ? "-ExcludeVersion" : ""))
+                    string.Format(@"install ""{0}"" -Version ""{1}"" -Source ""{2}"" -PackageSaveMode ""{4}""  -OutputDirectory ""{3}"" -Verbosity detailed {5}", item.Id, item.Version, item.PackageSource.Location, Destination, PackageSaveMode, ExcludeVersion ? "-ExcludeVersion" : ""))
                 ) {
                 foreach (var l in p.StandardOutput) {
                     if (string.IsNullOrEmpty(l)) {
@@ -950,18 +1022,18 @@ public bool Warning(string messageText, params object[] args) {
                     Verbose("NuGet: {0}", l);
                     // Successfully installed 'ComicRack 0.9.162'.
                     if (l.Contains("Successfully installed")) {
-                        result.GetOrAdd(InstallStatus.Successful, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
+                        result.GetOrAdd(InstallStatus.Successful, () => new List<PackageItem>()).Add(ParseOutputFull(item.PackageSource, item.Id, item.Version, l));
                         continue;
                     }
                     ;
 
                     if (l.Contains("already installed")) {
-                        result.GetOrAdd(InstallStatus.AlreadyPresent, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
+                        result.GetOrAdd(InstallStatus.AlreadyPresent, () => new List<PackageItem>()).Add(ParseOutputFull(item.PackageSource, item.Id, item.Version, l));
                         continue;
                     }
 
                     if (l.Contains("not installed")) {
-                        result.GetOrAdd(InstallStatus.Failed, () => new List<PackageItem>()).Add(ParseOutputFull(source, packageId, version, l));
+                        result.GetOrAdd(InstallStatus.Failed, () => new List<PackageItem>()).Add(ParseOutputFull(item.PackageSource, item.Id, item.Version, l));
                         continue;
                     }
                 }
@@ -983,8 +1055,8 @@ public bool Warning(string messageText, params object[] args) {
                 return Enumerable.Empty<PackageItem>();
             }
 
-            return Repositories.AsParallel().SelectMany(repository => {
-                var pkgs = repository.FindPackages(name, versionSpec, AllowPrereleaseVersions, allowUnlisted);
+            return SelectedSources.AsParallel().SelectMany(source => {
+                var pkgs = source.Repository.FindPackages(name, versionSpec, AllowPrereleaseVersions, allowUnlisted);
 
                 /*
                 // necessary?
@@ -995,27 +1067,27 @@ public bool Warning(string messageText, params object[] args) {
 
                 return pkgs2.Select(pkg => new PackageItem {
                     Package = pkg,
-                    Source = repository.Source,
-                    FastPath = MakeFastPath(repository.Source, pkg.Id, pkg.Version.ToString())
+                    PackageSource = source,
+                    FastPath = MakeFastPath(source, pkg.Id, pkg.Version.ToString())
                 });
             }).OrderByDescending(each => each.Package.Version);
         }
 
         internal bool InstallSinglePackage(PackageItem packageItem) {
-            if (ShouldProcessPackageInstall(packageItem.Id, packageItem.Version, packageItem.Source)) {
+            if (ShouldProcessPackageInstall(packageItem.Id, packageItem.Version, packageItem.PackageSource.Name)) {
                 // Get NuGet to install the Package
 
-                var results = NuGetInstall(packageItem.Source, packageItem.Id, packageItem.Version);
+                var results = NuGetInstall(packageItem);
 
                 if (results.Status == InstallStatus.Successful) {
                     foreach (var installedPackage in results[InstallStatus.Successful]) {
-                        if (!NotifyPackageInstalled(installedPackage.Id, installedPackage.Version, installedPackage.Source, installedPackage.FullPath)) {
+                        if (!NotifyPackageInstalled(installedPackage.Id, installedPackage.Version, installedPackage.PackageSource.Name, installedPackage.FullPath)) {
                             // the caller has expressed that they are cancelling the install.
                             Verbose("NotifyPackageInstalled returned false--This is unexpected");
                             // todo: we should probablty uninstall this package unless the user said leave broken stuff behind
                             return false;
                         }
-                        YieldSoftwareIdentity(packageItem.FastPath, packageItem.Id, packageItem.Version, "semver", packageItem.Package.Summary, GetNameForSource(packageItem.Source), packageItem.FastPath, installedPackage.FullPath, installedPackage.PackageFilename);
+                        YieldPackage(packageItem, packageItem.PackageSource.Name);
                         // yay!
                     }
                     return true;

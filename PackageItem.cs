@@ -18,7 +18,10 @@ namespace OneGet.PackageProvider.NuGet {
 
     internal class PackageItem {
         internal IPackage Package {get; set;}
-        internal string Source {get; set;}
+        // internal string Source {get; set;}
+
+        internal PackageSource PackageSource {get; set;}
+
         internal string FastPath {get; set;}
 
         internal bool IsPackageFile {get; set;}
@@ -62,7 +65,7 @@ namespace OneGet.PackageProvider.NuGet {
         internal string PackageFilename {
             get {
                 if (IsPackageFile) {
-                    return Path.GetFileName(Source);
+                    return Path.GetFileName(PackageSource.Location);
                 }
 
                 return Id + "." + Version+ ".nupkg";
@@ -73,7 +76,7 @@ namespace OneGet.PackageProvider.NuGet {
         internal string FullPath {
             get {
                 if (IsPackageFile) {
-                    return Path.GetFileName(Source);
+                    return Path.GetFileName(PackageSource.Location);
                 }
                 return _fullPath;
             }
