@@ -7,7 +7,7 @@
     <ProjectGuid>{ED66CAA3-6A2C-417B-A8CD-EEB2A2658585}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>OneGet.PackageProvider.NuGet</RootNamespace>
+    <RootNamespace>NuGet.OneGet</RootNamespace>
     <AssemblyName>OneGet.PackageProvider.NuGet</AssemblyName>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>

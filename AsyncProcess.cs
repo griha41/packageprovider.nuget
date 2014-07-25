@@ -12,7 +12,7 @@
 //  limitations under the License.
 //
 
-namespace OneGet.PackageProvider.NuGet {
+namespace NuGet.OneGet {
     using System;
     using System.Collections;
     using System.Collections.Concurrent;
@@ -28,7 +28,7 @@ namespace OneGet.PackageProvider.NuGet {
     /// TODO: add support for a cancellation token to kill the process when cancelled.
     /// </summary>
     public class AsyncProcess :IDisposable {
-        protected Process _process;
+        private Process _process;
         private BlockingCollection<string> _stdError = new BlockingCollection<string>();
         private BlockingCollection<string> _stdOut = new BlockingCollection<string>();
         private ManualResetEvent _stdOutStarted = new ManualResetEvent(false);
