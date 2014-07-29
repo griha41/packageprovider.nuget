@@ -12,7 +12,7 @@
 //  limitations under the License.
 //  
 
-namespace OneGet.PackageProvider.NuGet {
+namespace NuGet.OneGet {
     using System.Runtime.InteropServices;
     using System.Text;
 

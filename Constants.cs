@@ -12,7 +12,7 @@
 //  limitations under the License.
 //  
 
-namespace OneGet.PackageProvider.NuGet {
+namespace NuGet.OneGet {
 
     internal static class Constants {
         #region copy constants-implementation
