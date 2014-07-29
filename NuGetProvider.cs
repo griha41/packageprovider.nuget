@@ -25,7 +25,7 @@ namespace OneGet.PackageProvider.NuGet {
         private static readonly string[] _empty = new string[0];
 
         private static readonly Dictionary<string,string[]> _features = new Dictionary<string, string[]> {
-            { "supports-powershellget-modules", _empty },
+            { "supports-powershell-modules", _empty },
             { "schemes", new [] {"http", "https", "file"} },
             { "extensions", new [] {"nupkg"} },
             { "magic-signatures", _empty },
@@ -42,7 +42,7 @@ namespace OneGet.PackageProvider.NuGet {
         /// <required />
         /// <returns>the name of the package provider</returns>
         public string GetPackageProviderName() {
-            return "NuGet";
+            return Constants.ProviderName;
         }
 
         public void InitializeProvider(object dynamicInterface, Callback c) {
@@ -111,7 +111,7 @@ namespace OneGet.PackageProvider.NuGet {
                         return;
                     }
                     // not valid
-                    request.Error("SOURCE_LOCATION_NOT_VALID", location);
+                    request.Error(ErrorCategory.InvalidData, location, Constants.SourceLocationNotValid, location);
                 }
 
                 request.AddPackageSource(name, location, trusted,false);
@@ -132,7 +132,7 @@ namespace OneGet.PackageProvider.NuGet {
                 request.Debug("Calling 'NuGet::RemovePackageSource'");
                 var src = request.FindRegisteredSource(name);
                 if (src == null) {
-                    request.Warning("UNKNOWN_SOURCE", name);
+                    request.Warning(Constants.UnableToResolveSource, name);
                     return;
                 }
 
@@ -224,7 +224,7 @@ namespace OneGet.PackageProvider.NuGet {
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
                 if (pkgRef == null) {
-                    request.Error("Unable to resolve package reference");
+                    request.Error(ErrorCategory.InvalidArgument, fastPath, Constants.UnableToResolvePackageReference);
                     return;
                 }
 
@@ -243,7 +243,7 @@ namespace OneGet.PackageProvider.NuGet {
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
                 if (pkgRef == null) {
-                    request.Error("Unable to resolve package reference");
+                    request.Error(ErrorCategory.InvalidArgument, fastPath, Constants.UnableToResolvePackageReference);
                     return;
                 }
 
@@ -251,8 +251,7 @@ namespace OneGet.PackageProvider.NuGet {
                     foreach (var dep in depSet.Dependencies) {
                         var depRefs = dep.VersionSpec == null ? request.GetPackageById(dep.Id).ToArray() : request.GetPackageByIdAndVersionSpec(dep.Id, dep.VersionSpec, true).ToArray();
                         if (depRefs.Length == 0) {
-                            request.Error("DependencyResolutionFailure", "Unable to resolve dependent package '{0} v{1}'", dep.Id, ((object)dep.VersionSpec ?? "").ToString());
-                            throw new Exception("DependencyResolutionFailure");
+                            request.ThrowError(ErrorCategory.InvalidResult, pkgRef.GetCanonicalId(request),  Constants.DependencyResolutionError , request.GetCanonicalPackageId(Constants.ProviderName, dep.Id, ((object)dep.VersionSpec ?? "").ToString()));
                         }
                         foreach (var dependencyReference in depRefs) {
                             request.YieldPackage(dependencyReference, pkgRef.Id);
@@ -275,7 +274,7 @@ namespace OneGet.PackageProvider.NuGet {
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
                 if (pkgRef == null) {
-                    request.Error("Unable to resolve package reference");
+                    request.Error(ErrorCategory.InvalidArgument, fastPath, Constants.UnableToResolvePackageReference);
                     return;
                 }
 
@@ -283,7 +282,7 @@ namespace OneGet.PackageProvider.NuGet {
 
                 foreach (var d in dependencies) {
                     if (!request.InstallSinglePackage(d)) {
-                        request.Error("InstallFailure:Dependent Package '{0} {1}' not installed", d.Id, d.Version);
+                        request.Error(ErrorCategory.InvalidResult, pkgRef.GetCanonicalId(request) , Constants.DependentPackageFailedInstall, d.GetCanonicalId(request));
                         return;
                     }
                 }
@@ -293,7 +292,7 @@ namespace OneGet.PackageProvider.NuGet {
                     // package itself didn't install.
                     // roll that back out everything we did install.
                     // and get out of here.
-                    request.Error("InstallFailure: Package '{0}' not installed", pkgRef.Id);
+                    request.Error(ErrorCategory.InvalidResult, pkgRef.GetCanonicalId(request), Constants.PackageFailedInstall, pkgRef.GetCanonicalId(request), Constants.ReasonUnknown);
                     
                 }
             }

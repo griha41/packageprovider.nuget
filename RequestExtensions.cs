@@ -23,7 +23,9 @@ namespace OneGet.PackageProvider.NuGet {
     using Callback = System.MarshalByRefObject;
 
     #region copy requestextension-implementation
-public static class RequestExtensions {
+/* Synced/Generated code =================================================== */
+
+    public static class RequestExtensions {
         private static dynamic _remoteDynamicInterface;
         private static dynamic _localDynamicInterface;
 

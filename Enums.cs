@@ -15,7 +15,9 @@
 namespace OneGet.PackageProvider.NuGet {
 
     #region copy PackageProvider-types
-public enum OptionCategory {
+/* Synced/Generated code =================================================== */
+
+    public enum OptionCategory {
         Package = 0,
         Provider = 1,
         Source = 2,
@@ -38,6 +40,46 @@ public enum OptionCategory {
         All = 0,
         User = 1,
         System = 2
+    }
+
+    #endregion
+
+    #region copy errorcategory-implementation
+/* generated code ====================================================== */
+
+    public enum ErrorCategory {
+        NotSpecified,
+        OpenError,
+        CloseError,
+        DeviceError,
+        DeadlockDetected,
+        InvalidArgument,
+        InvalidData,
+        InvalidOperation,
+        InvalidResult,
+        InvalidType,
+        MetadataError,
+        NotImplemented,
+        NotInstalled,
+        ObjectNotFound,
+        OperationStopped,
+        OperationTimeout,
+        SyntaxError,
+        ParserError,
+        PermissionDenied,
+        ResourceBusy,
+        ResourceExists,
+        ResourceUnavailable,
+        ReadError,
+        WriteError,
+        FromStdErr,
+        SecurityError,
+        ProtocolError,
+        ConnectionError,
+        AuthenticationError,
+        LimitsExceeded,
+        QuotaExceeded,
+        NotEnabled,
     }
 
     #endregion

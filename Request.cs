@@ -29,6 +29,7 @@ namespace OneGet.PackageProvider.NuGet {
     public abstract class Request : IDisposable {
         #region copy core-apis
 
+        /* Synced/Generated code =================================================== */
         /// <summary>
         ///     The provider can query to see if the operation has been cancelled.
         ///     This provides for a gentle way for the caller to notify the callee that
@@ -62,27 +63,34 @@ namespace OneGet.PackageProvider.NuGet {
         public abstract bool NotifyBeforePackageUninstall(string packageName, string version, string source, string destination);
 
         public abstract bool NotifyPackageUninstalled(string packageName, string version, string source, string destination);
+
+        public abstract string GetCanonicalPackageId(string providerName, string packageName, string version);
+
+        public abstract string ParseProviderName(string canonicalPackageId);
+
+        public abstract string ParsePackageName(string canonicalPackageId);
+
+        public abstract string ParsePackageVersion(string canonicalPackageId);
         #endregion
 
         #region copy host-apis
 
-        public abstract string GetMessageString(string message);
+        /* Synced/Generated code =================================================== */
+        public abstract string GetMessageString(string messageText);
 
-        public abstract bool Warning(string message);
+        public abstract bool Warning(string messageText);
 
-        public abstract bool Error(string message);
+        public abstract bool Error(string id, string category, string targetObjectValue, string messageText);
 
-        public abstract bool Message(string message);
+        public abstract bool Message(string messageText);
 
-        public abstract bool Verbose(string message);
+        public abstract bool Verbose(string messageText);
 
-        public abstract bool Debug(string message);
+        public abstract bool Debug(string messageText);
 
-        public abstract bool ExceptionThrown(string exceptionType, string message, string stacktrace);
+        public abstract int StartProgress(int parentActivityId, string messageText);
 
-        public abstract int StartProgress(int parentActivityId, string message);
-
-        public abstract bool Progress(int activityId, int progress, string message);
+        public abstract bool Progress(int activityId, int progressPercentage, string messageText);
 
         public abstract bool CompleteProgress(int activityId, bool isSuccessful);
 
@@ -119,6 +127,7 @@ namespace OneGet.PackageProvider.NuGet {
 
         #region copy service-apis
 
+        /* Synced/Generated code =================================================== */
         public abstract void DownloadFile(Uri remoteLocation, string localFilename, Object c);
 
         public abstract bool IsSupportedArchive(string localFilename, Object c);
@@ -151,6 +160,8 @@ namespace OneGet.PackageProvider.NuGet {
         #endregion
 
         #region copy response-apis
+
+        /* Synced/Generated code =================================================== */
 
         /// <summary>
         ///     The provider can query to see if the operation has been cancelled.
@@ -216,12 +227,19 @@ namespace OneGet.PackageProvider.NuGet {
         #endregion
 
         #region copy Request-implementation
-public bool Warning(string messageText, params object[] args) {
+/* Synced/Generated code =================================================== */
+
+        public bool Warning(string messageText, params object[] args) {
             return Warning(FormatMessageString(messageText,args));
         }
 
-        public bool Error(string messageText, params object[] args) {
-            return Error(FormatMessageString(messageText,args));
+        internal bool Error( ErrorCategory category, string targetObjectValue, string messageText, params object[] args) {
+            return Error(messageText, category.ToString(), targetObjectValue, FormatMessageString(messageText, args));
+        }
+
+        internal bool ThrowError(ErrorCategory category, string targetObjectValue, string messageText, params object[] args) {
+            Error(messageText, category.ToString(), targetObjectValue, FormatMessageString(messageText, args));
+            throw new Exception("MSG:TerminatingError");
         }
 
         public bool Message(string messageText, params object[] args) {
@@ -252,16 +270,27 @@ public bool Warning(string messageText, params object[] args) {
             return System.Linq.Enumerable.Aggregate(args, "FIXME/Format:" + formatString.Replace('{', '\u00ab').Replace('}', '\u00bb'), (current, arg) => current + string.Format(CultureInfo.CurrentCulture," \u00ab{0}\u00bb", arg));
         }
 
-        internal string FormatMessageString(string message, object[] args) {
-            message = GetMessageString(message) ?? message;
+        internal string GetMessageStringInternal(string messageText) {
+            return Resources.ResourceManager.GetString(messageText);
+        }
+
+        internal string FormatMessageString(string messageText, object[] args) {
+            if (string.IsNullOrEmpty(messageText)) {
+                return string.Empty;
+            }
+
+            if (messageText.StartsWith(Constants.MSGPrefix, true, CultureInfo.CurrentCulture)) {
+                // check with the caller first, then with the local resources, and fallback to using the messageText itself.
+                messageText = GetMessageString(messageText.Substring(Constants.MSGPrefix.Length)) ?? GetMessageStringInternal(messageText) ?? messageText;    
+            }
 
             // if it doesn't look like we have the correct number of parameters
             // let's return a fixmeformat string.
-            var c = System.Linq.Enumerable.Count( System.Linq.Enumerable.Where(message.ToCharArray(), each => each == '{'));
+            var c = System.Linq.Enumerable.Count( System.Linq.Enumerable.Where(messageText.ToCharArray(), each => each == '{'));
             if (c < args.Length) {
-                return FixMeFormat(message, args);
+                return FixMeFormat(messageText, args);
             }
-            return string.Format(CultureInfo.CurrentCulture, message, args);
+            return string.Format(CultureInfo.CurrentCulture, messageText, args);
         }
 
         public SecureString Password {
@@ -308,13 +337,6 @@ public bool Warning(string messageText, params object[] args) {
         }
 
         #endregion
-
-        private const string DefaultConfig = @"<?xml version=""1.0""?>
-<configuration>
-  <packageSources>
-    <add key=""nuget.org"" value=""https://www.nuget.org/api/v2/"" />
-  </packageSources>
-</configuration>";
 
         private static readonly Regex _rxFastPath = new Regex(@"\$(?<source>[\w,\+,\/,=]*)\\(?<id>[\w,\+,\/,=]*)\\(?<version>[\w,\+,\/,=]*)");
         private static readonly Regex _rxPkgParse = new Regex(@"'(?<pkgId>\S*)\s(?<ver>.*?)'");
@@ -408,7 +430,7 @@ public bool Warning(string messageText, params object[] args) {
                 } catch {
                     // a bad xml doc.
                 }
-                return XDocument.Load(new MemoryStream(Encoding.UTF8.GetBytes(DefaultConfig)));
+                return XDocument.Load(new MemoryStream(Encoding.UTF8.GetBytes(Constants.DefaultConfig)));
             }
             set {
                 if (value == null) {
@@ -505,15 +527,15 @@ public bool Warning(string messageText, params object[] args) {
                                     IsValidated = isValidated,
                                 };
                                 continue;
-                            } 
-                            Error("SOURCE_LOCATION_NOT_VALID", src);
-                            Warning("UNKNOWN_SOURCE", src);
+                            }
+                            Error(ErrorCategory.InvalidArgument, src,  Constants.SourceLocationNotValid, src);
+                            Warning(Constants.UnableToResolveSource, src);
                             continue;
                         }
 
                         // hmm. not a valid location?
-                        Error("URI_SCHEME_NOT_SUPPORTED", src);
-                        Warning("UNKNOWN_SOURCE", src);
+                        Error(ErrorCategory.InvalidArgument, src, Constants.UriSchemeNotSupported, src);
+                        Warning(Constants.UnableToResolveSource, src);
                         continue;
                     }
 
@@ -528,12 +550,12 @@ public bool Warning(string messageText, params object[] args) {
                         };
                     } else {
                         // hmm. not a valid location?
-                        Warning("UNKNOWN_SOURCE", src);
+                        Warning(Constants.UnableToResolveSource, src);
                     }
                 }
             }
         }
-        
+
         private static string NuGetExePath {
             get {
                 return typeof (AggregateRepository).Assembly.Location;
@@ -704,14 +726,13 @@ public bool Warning(string messageText, params object[] args) {
             catch {
             }
 
-
             if (Uri.IsWellFormedUriString(nameOrLocation, UriKind.Absolute)) {
                 var uri = new Uri(nameOrLocation, UriKind.Absolute);
                 if (!NuGetProvider.SupportedSchemes.Contains(uri.Scheme.ToLowerInvariant())) {
-                    Error("UNSUPPORTED_URI_SCHEME_FOR_SOURCE", uri);
+                    Error(ErrorCategory.InvalidArgument, uri.ToString(), Constants.UriSchemeNotSupported, uri);
                     return null;
                 }
-                
+
                 // this is an URI, and it looks like one type that we support
                 if (SkipValidate || ValidateSourceUri(uri)) {
                     return new PackageSource {
@@ -724,11 +745,9 @@ public bool Warning(string messageText, params object[] args) {
                 }    
             }
 
-            Error("UNRESOLVED_SOURCE_LOCATION_OR_NAME", nameOrLocation);
+            Error(ErrorCategory.InvalidArgument, nameOrLocation, Constants.UnableToResolveSource, nameOrLocation);
             return null;
         }
-
-      
 
         internal IEnumerable<IPackage> FilterOnVersion(IEnumerable<IPackage> pkgs, string requiredVersion, string minimumVersion, string maximumVersion) {
             if (!string.IsNullOrEmpty(requiredVersion)) {
@@ -784,22 +803,22 @@ public bool Warning(string messageText, params object[] args) {
                 if (!YieldSoftwareMetadata(pkg.FastPath, "FromTrustedSource", pkg.PackageSource.Trusted.ToString())) {
                     return false;
                 }
-                if (pkg.Package.LicenseUrl != null) {
+                if (pkg.Package.LicenseUrl != null && !string.IsNullOrEmpty(pkg.Package.LicenseUrl.ToString()) ) {
                     if(!YieldLink(pkg.FastPath, pkg.Package.LicenseUrl.ToString(), "license", null, null, null, null, null)) {
                         return false;
                     }
                 }
-                if (pkg.Package.ProjectUrl != null) {
+                if (pkg.Package.ProjectUrl != null && !string.IsNullOrEmpty(pkg.Package.ProjectUrl.ToString())) {
                     if(!YieldLink(pkg.FastPath, pkg.Package.ProjectUrl.ToString(), "project", null, null, null, null, null)) {
                         return false;
                     }
                 }
-                if (pkg.Package.ReportAbuseUrl != null) {
+                if (pkg.Package.ReportAbuseUrl != null && !string.IsNullOrEmpty(pkg.Package.ReportAbuseUrl.ToString())) {
                     if(!YieldLink(pkg.FastPath, pkg.Package.ReportAbuseUrl.ToString(), "abuse", null, null, null, null, null) ) {
                         return false;
                     }
                 }
-                if (pkg.Package.IconUrl != null) {
+                if (pkg.Package.IconUrl != null && !string.IsNullOrEmpty(pkg.Package.IconUrl.ToString())) {
                     if (!YieldLink(pkg.FastPath, pkg.Package.IconUrl.ToString(), "icon", null, null, null, null, null)) {
                         return false;
                     }
@@ -830,13 +849,11 @@ public bool Warning(string messageText, params object[] args) {
             return foundPackage;
         }
 
-    
-
         internal IEnumerable<PackageItem> GetPackageById(string name, string requiredVersion = null, string minimumVersion = null, string maximumVersion = null, bool allowUnlisted = false) {
             if (string.IsNullOrEmpty(name)) {
                 return Enumerable.Empty<PackageItem>();
             }
-            return SelectedSources.AsParallel().SelectMany(source => {
+            return SelectedSources.AsParallel().WithMergeOptions(ParallelMergeOptions.NotBuffered).SelectMany(source => {
                 try {
                     var pkgs = source.Repository.FindPackagesById(name);
 
@@ -863,7 +880,7 @@ public bool Warning(string messageText, params object[] args) {
 
         internal PackageItem GetPackageByFilePath(string filePath) {
             // todo: currently requires nupkg file in place.
-            
+
             if (PackageHelper.IsPackageFile(filePath)) {
                 var package = new ZipPackage(filePath);
                 var source = ResolvePackageSource(filePath);
@@ -878,7 +895,6 @@ public bool Warning(string messageText, params object[] args) {
             }
             return null;
         }
-
 
         internal PackageItem GetPackageByFastpath(string fastPath) {
             string sourceLocation;
@@ -906,40 +922,43 @@ public bool Warning(string messageText, params object[] args) {
         }
 
         internal IEnumerable<PackageItem> SearchForPackages(string name, string requiredVersion, string minimumVersion, string maximumVersion) {
-            return SelectedSources.AsParallel().SelectMany(source => {
-                var criteria = Contains;
-                if (string.IsNullOrEmpty(criteria)) {
-                    criteria = name;
-                }
-                var packages = source.Repository.GetPackages().Find(criteria);
+            return SelectedSources.AsParallel().WithMergeOptions(ParallelMergeOptions.NotBuffered).SelectMany(source => SearchSourceForPackages(source, name, requiredVersion, minimumVersion, maximumVersion));
+        }
 
-                // why does this method return less results? It looks the same to me!?
-                // var packages = repository.Search(Hint.Is() ? Hint : name);
+        private IEnumerable<PackageItem> SearchSourceForPackages(PackageSource source, string name, string requiredVersion, string minimumVersion, string maximumVersion) {
+            var criteria = Contains;
+            if (string.IsNullOrEmpty(criteria)) {
+                criteria = name;
+            }
+            var packages = source.Repository.GetPackages().Find(criteria);
 
-                IEnumerable<IPackage> pkgs = null;
+            // why does this method return less results? It looks the same to me!?
+            // var packages = repository.Search(Hint.Is() ? Hint : name);
 
-                // query filtering:
-                if (!AllVersions && (string.IsNullOrEmpty(requiredVersion) && string.IsNullOrEmpty(minimumVersion) && string.IsNullOrEmpty(maximumVersion))) {
-                    //slow, client side way: pkgs = packages.ToEnumerable.GroupBy(p => p.Id).Select(set => set.MyMax(p => p.Version));
-                    // new way: uses method in NuGet.exe in 2.8.1.1+
-                    pkgs = packages.FindLatestVersion();
-                } else {
-                    // post-query filtering:
-                    pkgs = packages;
-                }
+            IEnumerable<IPackage> pkgs = null;
 
-                // if they passed a name, restrict the search things that actually contain the name in the FullName.
-                if (!string.IsNullOrEmpty(name)) {
-                    pkgs = FilterOnName(pkgs, name);
-                }
+            // query filtering:
+            if (!AllVersions && (string.IsNullOrEmpty(requiredVersion) && string.IsNullOrEmpty(minimumVersion) && string.IsNullOrEmpty(maximumVersion))) {
+                //slow, client side way: pkgs = packages.ToEnumerable.GroupBy(p => p.Id).Select(set => set.MyMax(p => p.Version));
+                // new way: uses method in NuGet.exe in 2.8.1.1+
+                pkgs = packages.FindLatestVersion();
+            }
+            else {
+                // post-query filtering:
+                pkgs = packages;
+            }
 
-                return FilterOnVersion(pkgs, requiredVersion, minimumVersion, maximumVersion)
-                    .Select(pkg => new PackageItem {
-                        Package = pkg,
-                        PackageSource = source,
-                        FastPath = MakeFastPath(source, pkg.Id, pkg.Version.ToString())
-                    });
-            });
+            // if they passed a name, restrict the search things that actually contain the name in the FullName.
+            if (!string.IsNullOrEmpty(name)) {
+                pkgs = FilterOnName(pkgs, name);
+            }
+
+            return FilterOnVersion(pkgs, requiredVersion, minimumVersion, maximumVersion)
+                .Select(pkg => new PackageItem {
+                    Package = pkg,
+                    PackageSource = source,
+                    FastPath = MakeFastPath(source, pkg.Id, pkg.Version.ToString())
+                }); 
         }
 
         public bool IsPackageInstalled(string name, string version) {
@@ -970,8 +989,7 @@ public bool Warning(string messageText, params object[] args) {
                     var depRefs = dep.VersionSpec == null ? GetPackageById(dep.Id).ToArray() : GetPackageByIdAndVersionSpec(dep.Id, dep.VersionSpec, true).ToArray();
 
                     if (depRefs.Length == 0) {
-                        Error("DependencyResolutionFailure", "Unable to resolve dependent package '{0} v{1}'", dep.Id, ((object)dep.VersionSpec ?? "").ToString());
-                        throw new Exception("DependencyResolutionFailure");
+                        ThrowError(ErrorCategory.ObjectNotFound, packageItem.GetCanonicalId(this), Constants.DependencyResolutionError, GetCanonicalPackageId(Constants.ProviderName, dep.Id, ((object)dep.VersionSpec ?? "").ToString()));
                     }
 
                     if (depRefs.Any(each => IsPackageInstalled(each.Id, each.Version))) {
@@ -1055,7 +1073,7 @@ public bool Warning(string messageText, params object[] args) {
                 return Enumerable.Empty<PackageItem>();
             }
 
-            return SelectedSources.AsParallel().SelectMany(source => {
+            return SelectedSources.AsParallel().WithMergeOptions(ParallelMergeOptions.NotBuffered).SelectMany(source => {
                 var pkgs = source.Repository.FindPackages(name, versionSpec, AllowPrereleaseVersions, allowUnlisted);
 
                 /*
@@ -1098,13 +1116,9 @@ public bool Warning(string messageText, params object[] args) {
                     Verbose("Skipped Package '{0} v{1}' already installed", packageItem.Id, packageItem.Version);
                     return true;
                 }
-
-                Error("Package '{0} v{1}' installed more than one package, and this was unexpected", packageItem.Id, packageItem.Version);
+                Error(ErrorCategory.InvalidResult, packageItem.GetCanonicalId(this), Constants.MultiplePackagesInstalledExpectedOne, packageItem.GetCanonicalId(this));
             }
             return false;
-        }
-
-        private void UninstallPackage(string fastPath, bool isRollingBack) {
         }
     }
 

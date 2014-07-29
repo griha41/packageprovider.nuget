@@ -84,5 +84,10 @@ namespace OneGet.PackageProvider.NuGet {
                 _fullPath = value;
             }
         }
+
+        private string _canonicalId;
+        internal string GetCanonicalId(Request request) {
+            return _canonicalId ?? (_canonicalId = request.GetCanonicalPackageId(Constants.ProviderName, Id, Version));
+        }
     }
 }
