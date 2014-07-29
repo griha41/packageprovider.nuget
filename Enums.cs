@@ -12,7 +12,7 @@
 //  limitations under the License.
 //  
 
-namespace OneGet.PackageProvider.NuGet {
+namespace NuGet.OneGet {
 
     #region copy PackageProvider-types
 /* Synced/Generated code =================================================== */
