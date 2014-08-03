@@ -20,7 +20,7 @@ namespace NuGet.OneGet {
     using System.Security;
     using System.Security.Cryptography;
     using System.Text;
-    using Callback = System.MarshalByRefObject;
+    using RequestImpl = System.MarshalByRefObject;
 
     #region copy requestextension-implementation
 /* Synced/Generated code =================================================== */

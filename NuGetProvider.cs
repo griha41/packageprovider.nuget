@@ -19,7 +19,7 @@ namespace NuGet.OneGet{
     using System.Linq;
     using System.Reflection;
     using global::NuGet;
-    using Callback = System.Object;
+    using RequestImpl = System.Object;
 
     public class NuGetProvider {
         private static readonly string[] _empty = new string[0];
@@ -37,7 +37,7 @@ namespace NuGet.OneGet{
             }
         }
         /// <summary>
-        ///     Returns the name of the Provider. Doesn't need a callback .
+        ///     Returns the name of the Provider. 
         /// </summary>
         /// <required />
         /// <returns>the name of the package provider</returns>
@@ -45,15 +45,15 @@ namespace NuGet.OneGet{
             return Constants.ProviderName;
         }
 
-        public void InitializeProvider(object dynamicInterface, Callback c) {
+        public void InitializeProvider(object dynamicInterface, RequestImpl requestImpl) {
             RequestExtensions.RemoteDynamicInterface = dynamicInterface;
             _features.AddOrSet("exe", new[] {
                 Assembly.GetAssembly(typeof(global::NuGet.PackageSource)).Location
             });
         }
 
-        public void GetFeatures(Callback c) {
-            using (var request = c.As<Request>()) {
+        public void GetFeatures(RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::GetFeatures'");
                 foreach (var feature in _features) {
                     request.Yield(feature);
@@ -61,8 +61,8 @@ namespace NuGet.OneGet{
             }
         }
 
-        public void GetDynamicOptions(int category, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void GetDynamicOptions(int category, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 try {
                     var cat = (OptionCategory)category;
                     request.Debug("Calling 'NuGet::GetDynamicOptions ({0})'", cat);
@@ -96,8 +96,8 @@ namespace NuGet.OneGet{
 
 
         // --- Manages package sources ---------------------------------------------------------------------------------------------------
-        public void AddPackageSource(string name, string location, bool trusted, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void AddPackageSource(string name, string location, bool trusted, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::AddPackageSource'");
                 var src = request.FindRegisteredSource(name);
                 if (src != null) {
@@ -118,8 +118,8 @@ namespace NuGet.OneGet{
             }
         }
 
-        public void ResolvePackageSources(Callback c) {
-            using (var request = c.As<Request>()) {
+        public void ResolvePackageSources(RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::ResolvePackageSources'");
                 foreach (var source in request.SelectedSources) {
                     request.YieldPackageSource(source.Name, source.Location, source.Trusted, source.IsRegistered, source.IsValidated);
@@ -127,8 +127,8 @@ namespace NuGet.OneGet{
             }
         }
 
-        public void RemovePackageSource(string name, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void RemovePackageSource(string name, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::RemovePackageSource'");
                 var src = request.FindRegisteredSource(name);
                 if (src == null) {
@@ -151,8 +151,8 @@ namespace NuGet.OneGet{
         /// <param name="id"></param>
         /// <param name="c"></param>
         /// <returns></returns>
-        public void FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::FindPackage'");
 
                 // get the package by ID first.
@@ -171,8 +171,8 @@ namespace NuGet.OneGet{
             }
         }
 
-        public void FindPackageByFile(string filePath, int id, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void FindPackageByFile(string filePath, int id, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::FindPackageByFile'");
                 var pkgItem = request.GetPackageByFilePath(Path.GetFullPath(filePath));
                 if (pkgItem != null) {
@@ -182,8 +182,8 @@ namespace NuGet.OneGet{
         }
 
         /* NOT SUPPORTED BY NUGET -- AT THIS TIME 
-        public void FindPackageByUri(Uri uri, int id, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void FindPackageByUri(Uri uri, int id, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::FindPackageByUri'");
 
                 // check if this URI is a valid source
@@ -195,8 +195,8 @@ namespace NuGet.OneGet{
         }
          */
 
-        public void GetInstalledPackages(string name, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void GetInstalledPackages(string name, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::GetInstalledPackages'");
                 var nupkgs = Directory.EnumerateFileSystemEntries(request.Destination, "*.nupkg", SearchOption.AllDirectories);
 
@@ -218,8 +218,8 @@ namespace NuGet.OneGet{
         }
 
         // --- operations on a package ---------------------------------------------------------------------------------------------------
-        public void DownloadPackage(string fastPath, string location, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void DownloadPackage(string fastPath, string location, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::DownloadPackage'");
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
@@ -237,8 +237,8 @@ namespace NuGet.OneGet{
             }
         }
 
-        public void GetPackageDependencies(string fastPath, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void GetPackageDependencies(string fastPath, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::GetPackageDependencies'");
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
@@ -261,15 +261,15 @@ namespace NuGet.OneGet{
             }
         }
 
-        public void GetPackageDetails(string fastPath, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void GetPackageDetails(string fastPath, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::GetPackageDetails'");
             }
         }
 
-        public void InstallPackage(string fastPath, Callback c) {
+        public void InstallPackage(string fastPath, RequestImpl requestImpl) {
             // ensure that mandatory parameters are present.
-            using (var request = c.As<Request>()) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::InstallPackage'");
 
                 var pkgRef = request.GetPackageByFastpath(fastPath);
@@ -298,10 +298,10 @@ namespace NuGet.OneGet{
             }
         }
 
-        // callback for each package installed when installing dependencies?
+        // call-back for each package installed when installing dependencies?
 
-        public void UninstallPackage(string fastPath, Callback c) {
-            using (var request = c.As<Request>()) {
+        public void UninstallPackage(string fastPath, RequestImpl requestImpl) {
+            using (var request =requestImpl.As<Request>()) {
                 request.Debug("Calling 'NuGet::UninstallPackage'");
                 var pkg = request.GetPackageByFastpath(fastPath);
 

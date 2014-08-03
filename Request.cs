@@ -24,7 +24,7 @@ namespace NuGet.OneGet {
     using System.Xml.Linq;
     using System.Xml.XPath;
     using global::NuGet;
-    using Callback = System.MarshalByRefObject;
+    using RequestImpl = System.MarshalByRefObject;
 
     public abstract class Request : IDisposable {
         #region copy core-apis
@@ -45,13 +45,13 @@ namespace NuGet.OneGet {
         /// </summary>
         /// <param name="c"></param>
         /// <returns></returns>
-        public abstract object GetPackageManagementService(Object c);
+        public abstract object GetPackageManagementService(RequestImpl requestImpl);
 
         /// <summary>
-        ///     Returns the type for a Request/Callback that the OneGet Core is expecting
+        ///     Returns the interface type for a Request that the OneGet Core is expecting
         ///     This is (currently) neccessary to provide an appropriately-typed version
         ///     of the Request to the core when a Plugin is calling back into the core
-        ///     and has to pass a Callback.
+        ///     and has to pass a request object.
         /// </summary>
         /// <returns></returns>
         public abstract Type GetIRequestInterface();
@@ -108,6 +108,8 @@ namespace NuGet.OneGet {
 
         public abstract string GetCredentialPassword();
 
+        public abstract bool ShouldBootstrapProvider(string requestor, string providerName, string providerVersion, string providerType, string location, string destination );
+
         public abstract bool ShouldContinueWithUntrustedPackageSource(string package, string packageSource);
 
         public abstract bool ShouldProcessPackageInstall(string packageName, string version, string source);
@@ -123,40 +125,44 @@ namespace NuGet.OneGet {
         public abstract bool ShouldContinueRunningUninstallScript(string packageName, string version, string source, string scriptLocation);
 
         public abstract bool AskPermission(string permission);
+
+        public abstract bool IsInteractive();
+
+        public abstract int CallCount();
         #endregion
 
         #region copy service-apis
 
         /* Synced/Generated code =================================================== */
-        public abstract void DownloadFile(Uri remoteLocation, string localFilename, Object c);
+        public abstract void DownloadFile(Uri remoteLocation, string localFilename, RequestImpl requestImpl);
 
-        public abstract bool IsSupportedArchive(string localFilename, Object c);
+        public abstract bool IsSupportedArchive(string localFilename, RequestImpl requestImpl);
 
-        public abstract IEnumerable<string> UnpackArchive(string localFilename, string destinationFolder, Object c);
+        public abstract IEnumerable<string> UnpackArchive(string localFilename, string destinationFolder, RequestImpl requestImpl);
 
-        public abstract void AddPinnedItemToTaskbar(string item, Object c);
+        public abstract void AddPinnedItemToTaskbar(string item, RequestImpl requestImpl);
 
-        public abstract void RemovePinnedItemFromTaskbar(string item, Object c);
+        public abstract void RemovePinnedItemFromTaskbar(string item, RequestImpl requestImpl);
 
-        public abstract void CreateShortcutLink(string linkPath, string targetPath, string description, string workingDirectory, string arguments, Object c);
+        public abstract void CreateShortcutLink(string linkPath, string targetPath, string description, string workingDirectory, string arguments, RequestImpl requestImpl);
 
-        public abstract void SetEnvironmentVariable(string variable, string value, int context, Object c);
+        public abstract void SetEnvironmentVariable(string variable, string value, int context, RequestImpl requestImpl);
 
-        public abstract void RemoveEnvironmentVariable(string variable, int context, Object c);
+        public abstract void RemoveEnvironmentVariable(string variable, int context, RequestImpl requestImpl);
 
-        public abstract void CopyFile(string sourcePath, string destinationPath, Object c);
+        public abstract void CopyFile(string sourcePath, string destinationPath, RequestImpl requestImpl);
 
-        public abstract void Delete(string path, Object c);
+        public abstract void Delete(string path, RequestImpl requestImpl);
 
-        public abstract void DeleteFolder(string folder, Object c);
+        public abstract void DeleteFolder(string folder, RequestImpl requestImpl);
 
-        public abstract void CreateFolder(string folder, Object c);
+        public abstract void CreateFolder(string folder, RequestImpl requestImpl);
 
-        public abstract void DeleteFile(string filename, Object c);
+        public abstract void DeleteFile(string filename, RequestImpl requestImpl);
 
-        public abstract string GetKnownFolder(string knownFolder, Object c);
+        public abstract string GetKnownFolder(string knownFolder, RequestImpl requestImpl);
 
-        public abstract bool IsElevated(Object c);
+        public abstract bool IsElevated(RequestImpl requestImpl);
         #endregion
 
         #region copy response-apis
@@ -271,7 +277,7 @@ namespace NuGet.OneGet {
         }
 
         internal string GetMessageStringInternal(string messageText) {
-            return Resources.ResourceManager.GetString(messageText);
+            return Messages.ResourceManager.GetString(messageText);
         }
 
         internal string FormatMessageString(string messageText, object[] args) {
@@ -459,7 +465,7 @@ namespace NuGet.OneGet {
                 } catch (Exception e) {
                     e.Dump(this);
                 }
-                return new Dictionary<string, PackageSource> {
+                return new Dictionary<string, PackageSource>(StringComparer.OrdinalIgnoreCase) {
                     {
                         "nuget.org", new PackageSource {
                             Name = "nuget.org",
@@ -939,8 +945,6 @@ namespace NuGet.OneGet {
 
             // query filtering:
             if (!AllVersions && (string.IsNullOrEmpty(requiredVersion) && string.IsNullOrEmpty(minimumVersion) && string.IsNullOrEmpty(maximumVersion))) {
-                //slow, client side way: pkgs = packages.ToEnumerable.GroupBy(p => p.Id).Select(set => set.MyMax(p => p.Version));
-                // new way: uses method in NuGet.exe in 2.8.1.1+
                 pkgs = packages.FindLatestVersion();
             }
             else {
