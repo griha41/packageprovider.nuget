@@ -149,7 +149,7 @@ namespace NuGet.OneGet{
         /// <param name="minimumVersion"></param>
         /// <param name="maximumVersion"></param>
         /// <param name="id"></param>
-        /// <param name="c"></param>
+        /// <param name="requestImpl"></param>
         /// <returns></returns>
         public void FindPackage(string name, string requiredVersion, string minimumVersion, string maximumVersion, int id, RequestImpl requestImpl) {
             using (var request =requestImpl.As<Request>()) {
